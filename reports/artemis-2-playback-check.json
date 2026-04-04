@@ -14,22 +14,34 @@
   "nominalStepSecondsMedian": 240.0,
   "eventChecks": [
     {
-      "id": "todo-launch",
-      "label": "TODO Replace with verified Artemis II launch time",
-      "epochUtc": "2026-04-01T15:47:00Z",
-      "verified": false,
-      "rangeStatus": "out-of-range",
+      "id": "oem-window-start",
+      "label": "OEM data window start",
+      "epochUtc": "2026-04-02T01:57:37.084Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
       "nearestSampleEpochMs": 1775095057084,
-      "nearestSampleOffsetMs": -36637084,
+      "nearestSampleOffsetMs": 0,
       "interpolationSupport": {
         "supportStartEpochMs": 1775095057084,
         "supportStopEpochMs": 1775095057084,
-        "insideSupportWindow": false
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "oem-window-end",
+      "label": "OEM data window end",
+      "epochUtc": "2026-04-10T23:53:17.163Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1775865197163,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1775865197163,
+        "supportStopEpochMs": 1775865197163,
+        "insideSupportWindow": true
       }
     }
   ],
-  "warnings": [
-    "Event todo-launch is outside mission time window"
-  ],
-  "generatedAtUtc": "2026-04-04T21:15:25Z"
+  "warnings": [],
+  "generatedAtUtc": "2026-04-04T22:21:44Z"
 }

@@ -394,8 +394,8 @@ function updateScene() {
   refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
 
   const eventCtx = getEventContext(state.events, state.currentMs);
-  if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label} (active)`;
-  else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label} (nearest)`;
+  if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
+  else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
   else refs.sbEvent.textContent = 'No events loaded';
 }
 
@@ -570,6 +570,11 @@ function findNextEvent(events, currentMs) {
     if (events[i].epochMs > currentMs + EVENT_NAV_EPS_MS) return events[i];
   }
   return null;
+}
+
+function eventVerificationTag(event) {
+  if (!event) return '';
+  return event.verified === true ? ' [verified]' : ' [unverified]';
 }
 
 function onResize() {

@@ -15,10 +15,19 @@ const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
 const FALLBACK_CANVAS_HEIGHT = 540;
+const CAMERA_TRANSITION_MS = 700;
+
+const PLANET_TEXTURE_URLS = {
+  earthColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_atmos_2048.jpg',
+  earthNormal: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_normal_2048.jpg',
+  earthSpecular: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_specular_2048.jpg',
+  moonColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/moon_1024.jpg',
+};
 
 let _scene, _camera, _renderer, _controls;
-let _earthMesh, _moonMesh, _orionMarker, _orionHalo;
+let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
+let _cameraTransition = null;
 
 export function createScene(canvas) {
   if (!canvas) throw new Error('createScene(canvas) requires a valid canvas element');
@@ -28,6 +37,7 @@ export function createScene(canvas) {
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
   _renderer.setClearColor(0x000005);
+  _renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   _scene = new THREE.Scene();
 
@@ -41,13 +51,34 @@ export function createScene(canvas) {
   _scene.add(sun);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
-  const earthMat = new THREE.MeshPhongMaterial({ color: 0x3f82f2, emissive: 0x13366d, shininess: 40 });
+  const earthMat = new THREE.MeshPhongMaterial({
+    color: 0x5a92e8,
+    emissive: 0x132f58,
+    shininess: 18,
+    specular: 0x2d2d2d,
+  });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
   _scene.add(_earthMesh);
 
+  const atmosphereGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM * 1.05), 48, 32);
+  const atmosphereMat = new THREE.MeshLambertMaterial({
+    color: 0x6fb2ff,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  _earthAtmosphere = new THREE.Mesh(atmosphereGeo, atmosphereMat);
+  _scene.add(_earthAtmosphere);
+
   const moonGeo = new THREE.SphereGeometry(kmToScene(MOON_RADIUS_KM), 32, 24);
-  const moonMat = new THREE.MeshPhongMaterial({ color: 0xcfcfcf, emissive: 0x303030, shininess: 10 });
+  const moonMat = new THREE.MeshPhongMaterial({
+    color: 0xd3d3d3,
+    emissive: 0x242424,
+    shininess: 5,
+  });
   _moonMesh = new THREE.Mesh(moonGeo, moonMat);
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
@@ -77,8 +108,9 @@ export function createScene(canvas) {
   _controls.minDistance = 0.1;
   _controls.maxDistance = 600;
 
+  _loadPlanetTextures(earthMat, moonMat);
   showFallbackBodies();
-  focusCameraPreset('fallback-overview');
+  focusCameraPreset('fallback-overview', { instant: true });
 }
 
 export function updateBodies(orionKm, moonKm) {
@@ -151,16 +183,19 @@ export function showFallbackBodies() {
 
 export function focusCameraPreset(name, context = {}) {
   if (!_camera || !_controls) return;
+  let cameraPos = _camera.position.clone();
+  let targetPos = _controls.target.clone();
 
   if (name === 'earth-centered') {
-    _camera.position.set(0, 0, 8);
-    _controls.target.set(0, 0, 0);
-  } else if (name === 'moon-approach' && context.moonKm) {
-    const mx = kmToScene(context.moonKm[0]);
-    const my = kmToScene(context.moonKm[1]);
-    const mz = kmToScene(context.moonKm[2]);
-    _camera.position.set(mx + 1.4, my + 0.8, mz + 1.4);
-    _controls.target.set(mx, my, mz);
+    cameraPos = new THREE.Vector3(0, 0, 8);
+    targetPos = new THREE.Vector3(0, 0, 0);
+  } else if (name === 'moon-approach') {
+    const moonKm = context.moonKm || DEFAULT_MOON_POSITION_KM;
+    const mx = kmToScene(moonKm[0]);
+    const my = kmToScene(moonKm[1]);
+    const mz = kmToScene(moonKm[2]);
+    cameraPos = new THREE.Vector3(mx + 1.4, my + 0.8, mz + 1.4);
+    targetPos = new THREE.Vector3(mx, my, mz);
   } else if (name === 'mission-fit' && context.boundsKm) {
     const min = context.boundsKm.min || [0, 0, 0];
     const max = context.boundsKm.max || [0, 0, 0];
@@ -169,16 +204,23 @@ export function focusCameraPreset(name, context = {}) {
     const cz = kmToScene((min[2] + max[2]) * 0.5);
     const span = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
     const distance = Math.max(2.5, kmToScene(span) * 1.2);
-    _camera.position.set(cx + distance, cy + distance * 0.4, cz + distance);
-    _controls.target.set(cx, cy, cz);
+    cameraPos = new THREE.Vector3(cx + distance, cy + distance * 0.4, cz + distance);
+    targetPos = new THREE.Vector3(cx, cy, cz);
   } else if (name === 'fallback-overview') {
     const moonX = kmToScene(DEFAULT_MOON_POSITION_KM[0]);
     const midX = moonX * 0.35;
-    _camera.position.set(midX, 5.5, 10.5);
-    _controls.target.set(midX, 0, 0);
+    cameraPos = new THREE.Vector3(midX, 5.5, 10.5);
+    targetPos = new THREE.Vector3(midX, 0, 0);
   }
 
-  _controls.update();
+  if (context.instant === true) {
+    _cameraTransition = null;
+    _camera.position.copy(cameraPos);
+    _controls.target.copy(targetPos);
+    _controls.update();
+    return;
+  }
+  _startCameraTransition(cameraPos, targetPos);
 }
 
 export function resizeScene(width, height) {
@@ -192,6 +234,7 @@ export function resizeScene(width, height) {
 
 export function renderScene() {
   if (!_renderer) return;
+  _tickCameraTransition();
   _controls.update();
   _renderer.render(_scene, _camera);
 }
@@ -264,4 +307,54 @@ function getSafeCanvasSize(canvas) {
     width: Math.max(1, Math.round(rawWidth)),
     height: Math.max(1, Math.round(rawHeight)),
   };
+}
+
+function _loadPlanetTextures(earthMat, moonMat) {
+  const loader = new THREE.TextureLoader();
+  _loadTexture(loader, PLANET_TEXTURE_URLS.earthColor, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    earthMat.map = tex;
+    earthMat.needsUpdate = true;
+  });
+  _loadTexture(loader, PLANET_TEXTURE_URLS.earthNormal, (tex) => {
+    earthMat.normalMap = tex;
+    earthMat.normalScale = new THREE.Vector2(0.65, 0.65);
+    earthMat.needsUpdate = true;
+  });
+  _loadTexture(loader, PLANET_TEXTURE_URLS.earthSpecular, (tex) => {
+    earthMat.specularMap = tex;
+    earthMat.needsUpdate = true;
+  });
+  _loadTexture(loader, PLANET_TEXTURE_URLS.moonColor, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    moonMat.map = tex;
+    moonMat.needsUpdate = true;
+  });
+}
+
+function _loadTexture(loader, url, onLoad) {
+  loader.load(url, onLoad, undefined, () => {
+    // Keep fallback materials when remote textures are unavailable.
+  });
+}
+
+function _startCameraTransition(targetPos, targetLookAt) {
+  _cameraTransition = {
+    startedAt: performance.now(),
+    durationMs: CAMERA_TRANSITION_MS,
+    fromPos: _camera.position.clone(),
+    fromTarget: _controls.target.clone(),
+    toPos: targetPos.clone(),
+    toTarget: targetLookAt.clone(),
+  };
+}
+
+function _tickCameraTransition() {
+  if (!_cameraTransition) return;
+  const elapsed = performance.now() - _cameraTransition.startedAt;
+  const t = Math.max(0, Math.min(1, elapsed / _cameraTransition.durationMs));
+  const eased = t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+  _camera.position.lerpVectors(_cameraTransition.fromPos, _cameraTransition.toPos, eased);
+  _controls.target.lerpVectors(_cameraTransition.fromTarget, _cameraTransition.toTarget, eased);
+  if (t >= 1) _cameraTransition = null;
 }

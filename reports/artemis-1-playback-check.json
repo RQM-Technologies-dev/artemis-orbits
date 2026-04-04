@@ -14,22 +14,118 @@
   "nominalStepSecondsMedian": 240.0,
   "eventChecks": [
     {
-      "id": "todo-launch",
-      "label": "TODO Replace with verified Artemis I launch time",
-      "epochUtc": "2022-11-16T06:47:44Z",
-      "verified": false,
-      "rangeStatus": "out-of-range",
+      "id": "oem-window-start",
+      "label": "OEM data window start",
+      "epochUtc": "2022-11-16T08:44:51.150Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
       "nearestSampleEpochMs": 1668588291150,
-      "nearestSampleOffsetMs": -7027150,
+      "nearestSampleOffsetMs": 0,
       "interpolationSupport": {
         "supportStartEpochMs": 1668588291150,
         "supportStopEpochMs": 1668588291150,
-        "insideSupportWindow": false
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "icps-separation",
+      "label": "Orion/ICPS separation",
+      "epochUtc": "2022-11-16T08:45:20Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1668588291150,
+      "nearestSampleOffsetMs": 28850,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1668588291150,
+        "supportStopEpochMs": 1668588531150,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "otc-2",
+      "label": "Outbound trajectory correction burn-2",
+      "epochUtc": "2022-11-17T11:35:15Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1668685006982,
+      "nearestSampleOffsetMs": -91982,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1668684758643,
+        "supportStopEpochMs": 1668685006982,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "outbound-powered-flyby",
+      "label": "Outbound powered flyby burn",
+      "epochUtc": "2022-11-21T13:27:58Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1669037168465,
+      "nearestSampleOffsetMs": 109535,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1669037168465,
+        "supportStopEpochMs": 1669037408465,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "dro-insertion",
+      "label": "Distant retrograde orbit insertion burn",
+      "epochUtc": "2022-11-25T22:36:11Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1669415875422,
+      "nearestSampleOffsetMs": -104422,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1669415635422,
+        "supportStopEpochMs": 1669415875422,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "dro-departure",
+      "label": "Distant retrograde orbit departure",
+      "epochUtc": "2022-12-01T22:37:40Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1669934226177,
+      "nearestSampleOffsetMs": 33823,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1669934226177,
+        "supportStopEpochMs": 1669934445155,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "return-powered-flyby",
+      "label": "Return powered flyby burn",
+      "epochUtc": "2022-12-05T17:11:44Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1670260307908,
+      "nearestSampleOffsetMs": -3908,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1670260141029,
+        "supportStopEpochMs": 1670260307908,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "oem-window-end",
+      "label": "OEM data window end",
+      "epochUtc": "2022-12-11T17:19:52.617Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1670779192617,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1670779192617,
+        "supportStopEpochMs": 1670779192617,
+        "insideSupportWindow": true
       }
     }
   ],
-  "warnings": [
-    "Event todo-launch is outside mission time window"
-  ],
-  "generatedAtUtc": "2026-04-04T21:15:25Z"
+  "warnings": [],
+  "generatedAtUtc": "2026-04-04T22:21:44Z"
 }
