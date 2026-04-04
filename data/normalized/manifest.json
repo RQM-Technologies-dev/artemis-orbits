@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "artemis-normalized-manifest",
+  "generatedAtUtc": "2026-04-04T21:15:20Z",
+  "missions": [
+    {
+      "missionId": "artemis-1",
+      "displayName": "Artemis I",
+      "status": "as-flown",
+      "missionPath": "./data/normalized/artemis-1.json",
+      "moonPath": "./data/normalized/artemis-1-moon.json",
+      "eventPath": "./data/events/artemis-1.json",
+      "sampleCount": 9211,
+      "segmentCount": 1,
+      "missionStartUtc": "2022-11-16T08:44:51.150Z",
+      "missionStopUtc": "2022-12-11T17:19:52.617Z"
+    },
+    {
+      "missionId": "artemis-2",
+      "displayName": "Artemis II",
+      "status": "as-flown",
+      "missionPath": "./data/normalized/artemis-2.json",
+      "moonPath": "./data/normalized/artemis-2-moon.json",
+      "eventPath": "./data/events/artemis-2.json",
+      "sampleCount": 3235,
+      "segmentCount": 1,
+      "missionStartUtc": "2026-04-02T01:57:37.084Z",
+      "missionStopUtc": "2026-04-10T23:53:17.163Z"
+    }
+  ]
+}
