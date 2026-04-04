@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NASA Artemis Orbits</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header id="app-header">
+    <h1>NASA Artemis Orbits</h1>
+    <p class="subtitle">Official OEM normalization + 3D browser playback shell</p>
+  </header>
+
+  <!-- ── Mission tab bar ────────────────────────────────────────── -->
+  <nav id="mission-tabs" role="tablist" aria-label="Mission selector"></nav>
+
+  <!-- ── Main layout ────────────────────────────────────────────── -->
+  <main id="app-main">
+
+    <!-- 3D scene panel -->
+    <section id="scene-panel" aria-label="3D orbit viewer">
+      <canvas id="three-canvas"></canvas>
+      <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
+    </section>
+
+    <!-- Right sidebar -->
+    <aside id="sidebar">
+
+      <!-- Mission info card -->
+      <div class="card" id="mission-info">
+        <h2 id="sb-mission-title">—</h2>
+        <p  id="sb-mission-summary" class="muted">—</p>
+        <p  id="sb-status-msg"      class="status-msg">—</p>
+      </div>
+
+      <!-- Telemetry card -->
+      <div class="card" id="telemetry">
+        <div class="telem-row">
+          <span class="telem-label">UTC</span>
+          <span class="telem-value" id="sb-utc">—</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">MET</span>
+          <span class="telem-value" id="sb-met">—</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Frame</span>
+          <span class="telem-value" id="sb-frame">—</span>
+        </div>
+        <div class="telem-row">
+          <span class="telem-label">Samples</span>
+          <span class="telem-value" id="sb-sample-count">—</span>
+        </div>
+      </div>
+
+      <!-- Playback controls card -->
+      <div class="card" id="playback-card">
+        <div class="controls-row">
+          <button id="btn-play"  class="btn btn-primary">▶ Play</button>
+          <button id="btn-reset" class="btn">↺ Reset</button>
+        </div>
+
+        <div class="controls-row">
+          <button id="btn-minus-1h"  class="btn btn-sm">−1 h</button>
+          <button id="btn-plus-1h"   class="btn btn-sm">+1 h</button>
+          <button id="btn-minus-1d"  class="btn btn-sm">−1 d</button>
+          <button id="btn-plus-1d"   class="btn btn-sm">+1 d</button>
+        </div>
+
+        <div class="controls-row speed-row">
+          <label for="speed-select" class="ctrl-label">Speed</label>
+          <select id="speed-select" class="select">
+            <option value="1">1×</option>
+            <option value="10">10×</option>
+            <option value="100">100×</option>
+            <option value="500" selected>500×</option>
+            <option value="1000">1000×</option>
+            <option value="3600">3600×</option>
+          </select>
+        </div>
+
+        <div class="slider-row">
+          <label for="timeline-slider" class="ctrl-label">Timeline</label>
+          <input
+            type="range"
+            id="timeline-slider"
+            min="0" max="1000" value="0"
+            step="1"
+            class="slider"
+          />
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ── App entry (ES module) ──────────────────────────────────── -->
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
