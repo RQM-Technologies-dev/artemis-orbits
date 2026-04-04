@@ -1,186 +1,89 @@
 # artemis-orbits
 
-**NASA Artemis Orbit Viewer** — a static 3D browser visualization of Earth, Moon, and Orion plus Python tooling that normalizes official NASA OEM ephemeris files into a clean JSON format ready for playback.
+Static NASA Artemis trajectory viewer (Earth/Moon/Orion) driven by normalized OEM ephemeris JSON.
 
-> No fabricated trajectory data. Load real NASA OEM ZIP files, run the normalizer, and see Orion fly.
+> No fabricated trajectory data. Keep official NASA OEM sources and Python normalization pipeline as the source of truth.
 
----
+## Official data sources
 
-## Official Data Sources
+| Mission | Official page | OEM ZIP |
+|---|---|---|
+| Artemis I | https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/ | https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip |
+| Artemis II | https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/ | https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip |
 
-| Mission | Official Page | OEM ZIP |
-|---------|--------------|---------|
-| Artemis I | [Track Artemis I](https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/) | [post-tli-orion-asflown-20221213-eph-oem.zip](https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip) |
-| Artemis II | [Track Artemis II](https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/) | [artemis-ii-oem-2026-04-04-to-ei.zip](https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip) |
+Moon vectors: JPL Horizons API (target 301, center 500@399, J2000, KM-S).
 
-Moon vectors come from the [JPL Horizons API](https://ssd-api.jpl.nasa.gov/doc/horizons.html) (target 301, center 500@399, J2000, KM-S units).
+## Quick start
 
----
-
-## Repo Layout
-
-```
-artemis-orbits/
-├── index.html                  # Single-page 3D viewer
-├── styles.css                  # Dark-space theme
-├── package.json                # Minimal – just a serve script
-├── data/
-│   ├── raw/                    # Drop NASA OEM ZIPs here
-│   └── normalized/             # Output JSON from normalize_oem.py
-├── docs/
-│   └── source-inspection.md   # OEM format notes and parsing assumptions
-├── scripts/
-│   ├── normalize_oem.py        # OEM ZIP → normalized JSON
-│   └── fetch_moon_vectors.py   # JPL Horizons → Moon JSON
-├── src/
-│   ├── app.js                  # Main app entry
-│   ├── config/missions.js      # Mission configuration array
-│   └── lib/
-│       ├── dataLoader.js       # Fetch + parse normalized JSON
-│       ├── interpolate.js      # Lagrange / linear interpolation
-│       ├── scene.js            # Three.js scene setup
-│       ├── time.js             # UTC / MET formatting
-│       └── units.js            # km → scene unit conversion
-└── tests/
-    ├── sample_artemis_ii_like_html_wrapper.txt  # Test fixture
-    └── test_normalize.py       # Python unit tests
+```bash
+python3 scripts/normalize_oem.py --mission-id artemis-1 --display-name "Artemis I" --status as-flown --official-page-url "https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/" --official-zip-url "https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip" --output data/normalized/artemis-1.json
+python3 scripts/normalize_oem.py --mission-id artemis-2 --display-name "Artemis II" --status as-flown --official-page-url "https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/" --official-zip-url "https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip" --output data/normalized/artemis-2.json
+python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-1.json --output data/normalized/artemis-1-moon.json
+python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-2.json --output data/normalized/artemis-2-moon.json
+python3 -m http.server 8000
 ```
 
----
+## Viewer behavior
 
-## Normalized JSON Schema
+- Segment-safe rendering: one polyline per OEM segment.
+- Faint **full route** (entire mission) plus bright **traversed route** (up to current mission time), never connected across segment gaps.
+- Playback is tied to `currentMs` mission UTC; wall-clock speed maps as:
+  - `1x real time` = 1 mission second / wall second
+  - `1 min/sec` = 60 mission seconds / wall second
+  - `10 min/sec` = 600 mission seconds / wall second
+  - `1 hr/sec` = 3600 mission seconds / wall second
+  - `6 hr/sec` = 21600 mission seconds / wall second
+  - `12 hr/sec` = 43200 mission seconds / wall second
+  - `1 day/sec` = 86400 mission seconds / wall second
+- Controls: play/pause, reset, jump start/end, previous/next event, ±1h, ±1d, timeline scrub.
+- Timeline event ticks + sidebar nearest/active event label.
+- Optional 3D event waypoint markers (interpolated from Orion state at event epoch).
+- Camera presets: Earth-centered, Moon-approach, mission-fit.
+
+## Event JSON schema
+
+Event files are optional. Place them in `data/events/` and reference via `eventsPath` in mission config.
 
 ```json
-{
-  "schemaVersion": "1.0.0",
-  "kind": "artemis-mission-trajectory",
-  "mission": { "id": "artemis-2", "displayName": "Artemis II", "status": "as-flown" },
-  "source": {
-    "type": "nasa-oem-zip",
-    "officialPageUrl": "https://...",
-    "officialZipUrl": "https://...",
-    "extractedMemberName": "Artemis_II_OEM_2026_04_04_to_EI.asc"
-  },
-  "frame": {
-    "centerName": "EARTH", "referenceFrame": "EME2000",
-    "timeSystem": "UTC", "positionUnits": "km", "velocityUnits": "km/s"
-  },
-  "segments": [
-    {
-      "id": "segment-0",
-      "metadata": {
-        "objectName": "EM2", "objectId": "24",
-        "startTime": "2026-04-02T03:07:49.583Z",
-        "stopTime":  "2026-04-10T23:53:12.332Z",
-        "interpolation": "LAGRANGE", "interpolationDegree": 8,
-        "comments": []
-      },
-      "samples": [
-        {
-          "epochUtc": "2026-04-02T03:07:49.583Z",
-          "epochMs": 1775099269583,
-          "positionKm": [0, 0, 0],
-          "velocityKmS": [0, 0, 0]
-        }
-      ]
-    }
-  ],
-  "derived": {
-    "sampleCount": 1, "segmentCount": 1,
-    "missionStartUtc": "2026-04-02T03:07:49.583Z",
-    "missionStopUtc":  "2026-04-10T23:53:12.332Z",
-    "nominalStepSecondsMedian": 240.0,
-    "boundsKm": { "min": [0,0,0], "max": [0,0,0] }
+[
+  {
+    "id": "launch",
+    "label": "Launch",
+    "epochUtc": "2026-04-01T15:47:00Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "description": "Mission launch"
   }
-}
+]
 ```
 
----
+Included starter files:
+- `data/events/artemis-1.json`
+- `data/events/artemis-2.json`
 
-## Quick Start
+These are placeholders with TODO labeling and **must be replaced with verified official NASA mission event times before treating them as authoritative**.
 
-### 1 – Normalize Artemis I (download from NASA)
+## Vercel deployment
+
+This app is static and deployment-safe for both root and subpath hosting.
+
+1. Ensure generated normalized JSON exists in `data/normalized/`.
+2. Deploy repo to Vercel as a static project (no build command required).
+3. `vercel.json` includes clean URL handling and rewrites so both `/NASA/Artemis` and `/NASA/Artemis/` resolve cleanly.
+4. Frontend URLs are relative/module-resolved so deployment works from `/` and nested paths.
+5. `.vercelignore` excludes local-only artifacts (`data/raw/`, caches, large ZIP/OEM scratch files).
+
+## Data notes
+
+- Artemis I and Artemis II are enabled and expected to use normalized official NASA OEM trajectories.
+- Artemis III–V remain disabled placeholders.
+- Interpolation stays segment-local only (never across OEM segment boundaries).
+- Gap times are handled explicitly so playback does not draw fake motion across missing spans.
+
+## Tests
+
+Python normalization tests:
 
 ```bash
-python3 scripts/normalize_oem.py \
-  --mission-id artemis-1 \
-  --display-name "Artemis I" \
-  --status as-flown \
-  --official-page-url "https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/" \
-  --official-zip-url  "https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip" \
-  --output data/normalized/artemis-1.json
+python3 -m pytest tests/test_normalize.py
 ```
-
-Or with a local ZIP already in `data/raw/`:
-
-```bash
-python3 scripts/normalize_oem.py \
-  --mission-id artemis-1 \
-  --display-name "Artemis I" \
-  --status as-flown \
-  --official-page-url "https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/" \
-  --input data/raw/post-tli-orion-asflown-20221213-eph-oem.zip \
-  --output data/normalized/artemis-1.json
-```
-
-### 2 – Normalize Artemis II
-
-```bash
-python3 scripts/normalize_oem.py \
-  --mission-id artemis-2 \
-  --display-name "Artemis II" \
-  --status as-flown \
-  --official-page-url "https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/" \
-  --official-zip-url  "https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip" \
-  --output data/normalized/artemis-2.json
-```
-
-### 3 – Fetch Moon vectors
-
-```bash
-python3 scripts/fetch_moon_vectors.py \
-  --input  data/normalized/artemis-2.json \
-  --output data/normalized/artemis-2-moon.json
-```
-
-### 4 – Serve the viewer
-
-```bash
-python3 -m http.server 8000
-# open http://localhost:8000/
-```
-
-Or with npm:
-
-```bash
-npm run serve
-```
-
----
-
-## Viewer Behaviour
-
-- Opens on **Artemis II** by default.
-- Tabs for Artemis I–V; Artemis III–V are disabled placeholders.
-- If normalized JSON is missing a helpful message is shown:  
-  *"Normalized data not found yet. Run scripts/normalize_oem.py and scripts/fetch_moon_vectors.py."*
-- Playback controls: Play/Pause, Reset, ±1 hour, ±1 day, speed selector, timeline slider.
-- UTC and Mission Elapsed Time are shown live.
-
----
-
-## Notes / Caveats
-
-- NASA publishes trajectories as **CCSDS OEM ZIPs**. The normalizer handles ZIP or plain ASCII input.
-- **Segment boundaries must be preserved** – interpolation never crosses them.
-- The Artemis II OEM may be wrapped in HTML/junk text before `CCSDS_OEM_VERS`. The sanitizer strips that automatically.
-- Moon vectors are **Earth-centered** (same frame as Orion) so both bodies can be rendered together in the browser.
-
----
-
-## What to Build Next
-
-- **Mission facts panel** keyed to UTC/MET (launch events, TLI, LOI, splashdown).
-- **Event callouts** that pop up at key trajectory milestones.
-- **Camera presets** (Earth view, Moon approach, Orion close-up).
-- **Artemis III–V nominal trajectories** once NASA publishes planning data.

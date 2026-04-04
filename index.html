@@ -7,96 +7,87 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <!-- ── Header ─────────────────────────────────────────────────── -->
   <header id="app-header">
     <h1>NASA Artemis Orbits</h1>
     <p class="subtitle">Official OEM normalization + 3D browser playback shell</p>
   </header>
 
-  <!-- ── Mission tab bar ────────────────────────────────────────── -->
   <nav id="mission-tabs" role="tablist" aria-label="Mission selector"></nav>
 
-  <!-- ── Main layout ────────────────────────────────────────────── -->
   <main id="app-main">
-
-    <!-- 3D scene panel -->
     <section id="scene-panel" aria-label="3D orbit viewer">
       <canvas id="three-canvas"></canvas>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
     </section>
 
-    <!-- Right sidebar -->
     <aside id="sidebar">
-
-      <!-- Mission info card -->
       <div class="card" id="mission-info">
         <h2 id="sb-mission-title">—</h2>
-        <p  id="sb-mission-summary" class="muted">—</p>
-        <p  id="sb-status-msg"      class="status-msg">—</p>
+        <p id="sb-mission-summary" class="muted">—</p>
+        <p id="sb-status-msg" class="status-msg">—</p>
       </div>
 
-      <!-- Telemetry card -->
       <div class="card" id="telemetry">
-        <div class="telem-row">
-          <span class="telem-label">UTC</span>
-          <span class="telem-value" id="sb-utc">—</span>
-        </div>
-        <div class="telem-row">
-          <span class="telem-label">MET</span>
-          <span class="telem-value" id="sb-met">—</span>
-        </div>
-        <div class="telem-row">
-          <span class="telem-label">Frame</span>
-          <span class="telem-value" id="sb-frame">—</span>
-        </div>
-        <div class="telem-row">
-          <span class="telem-label">Samples</span>
-          <span class="telem-value" id="sb-sample-count">—</span>
-        </div>
+        <div class="telem-row"><span class="telem-label">UTC</span><span class="telem-value" id="sb-utc">—</span></div>
+        <div class="telem-row"><span class="telem-label">MET</span><span class="telem-value" id="sb-met">—</span></div>
+        <div class="telem-row"><span class="telem-label">Sample / Mode</span><span class="telem-value" id="sb-frame">—</span></div>
+        <div class="telem-row"><span class="telem-label">Samples</span><span class="telem-value" id="sb-sample-count">—</span></div>
+        <div class="telem-row"><span class="telem-label">Event</span><span class="telem-value" id="sb-current-event">No events loaded</span></div>
       </div>
 
-      <!-- Playback controls card -->
+      <div class="card" id="legend-card">
+        <h3>Legend</h3>
+        <div class="legend-row"><span class="legend-swatch full-route"></span> Full route</div>
+        <div class="legend-row"><span class="legend-swatch traversed-route"></span> Traversed route</div>
+        <div class="legend-row"><span class="legend-swatch orion-now"></span> Orion now</div>
+        <div class="legend-row"><span class="legend-swatch event-marker"></span> Event marker</div>
+      </div>
+
       <div class="card" id="playback-card">
         <div class="controls-row">
-          <button id="btn-play"  class="btn btn-primary">▶ Play</button>
+          <button id="btn-play" class="btn btn-primary">▶ Play</button>
           <button id="btn-reset" class="btn">↺ Reset</button>
+          <button id="btn-jump-start" class="btn">⇤ Start</button>
+          <button id="btn-jump-end" class="btn">End ⇥</button>
         </div>
 
         <div class="controls-row">
-          <button id="btn-minus-1h"  class="btn btn-sm">−1 h</button>
-          <button id="btn-plus-1h"   class="btn btn-sm">+1 h</button>
-          <button id="btn-minus-1d"  class="btn btn-sm">−1 d</button>
-          <button id="btn-plus-1d"   class="btn btn-sm">+1 d</button>
+          <button id="btn-prev-event" class="btn btn-sm">⟵ Prev event</button>
+          <button id="btn-next-event" class="btn btn-sm">Next event ⟶</button>
+        </div>
+
+        <div class="controls-row">
+          <button id="btn-minus-1h" class="btn btn-sm">−1 h</button>
+          <button id="btn-plus-1h" class="btn btn-sm">+1 h</button>
+          <button id="btn-minus-1d" class="btn btn-sm">−1 d</button>
+          <button id="btn-plus-1d" class="btn btn-sm">+1 d</button>
         </div>
 
         <div class="controls-row speed-row">
           <label for="speed-select" class="ctrl-label">Speed</label>
-          <select id="speed-select" class="select">
-            <option value="1">1×</option>
-            <option value="10">10×</option>
-            <option value="100">100×</option>
-            <option value="500" selected>500×</option>
-            <option value="1000">1000×</option>
-            <option value="3600">3600×</option>
-          </select>
+          <select id="speed-select" class="select"></select>
         </div>
 
         <div class="slider-row">
           <label for="timeline-slider" class="ctrl-label">Timeline</label>
-          <input
-            type="range"
-            id="timeline-slider"
-            min="0" max="1000" value="0"
-            step="1"
-            class="slider"
-          />
+          <div class="timeline-track-wrap">
+            <input type="range" id="timeline-slider" min="0" max="1000" value="0" step="1" class="slider" />
+            <div id="timeline-ticks" class="timeline-ticks" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
 
+      <div class="card" id="camera-card">
+        <h3>Camera</h3>
+        <div class="controls-row">
+          <button id="btn-cam-earth" class="btn btn-sm">Earth-centered</button>
+          <button id="btn-cam-moon" class="btn btn-sm">Moon-approach</button>
+          <button id="btn-cam-fit" class="btn btn-sm">Mission-fit</button>
+        </div>
+      </div>
     </aside>
   </main>
 
-  <!-- ── App entry (ES module) ──────────────────────────────────── -->
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>

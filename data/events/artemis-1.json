@@ -1,0 +1,10 @@
+[
+  {
+    "id": "todo-launch",
+    "label": "TODO Replace with verified Artemis I launch time",
+    "epochUtc": "2022-11-16T06:47:44Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "description": "TODO: Replace all placeholder events with verified official NASA mission timeline entries."
+  }
+]
