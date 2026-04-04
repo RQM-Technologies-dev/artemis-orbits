@@ -17,7 +17,13 @@ import {
   setPerformanceMode,
   setFollowCameraEnabled,
   setEventMarkerClickHandler,
+  setZoomChangeListener,
   zoomCamera,
+  setZoomLevel,
+  getZoomLevel,
+  resetZoom,
+  setVisualPreset,
+  getVisualPreset,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -46,6 +52,13 @@ const SPEED_OPTIONS = [
   { label: '1 day/sec', missionMsPerWallSecond: 86_400_000 },
 ];
 
+const VISUAL_PRESET_OPTIONS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'bright', label: 'Bright' },
+  { value: 'high-contrast', label: 'High contrast' },
+];
+const CONTROLS_HINT_STORAGE_KEY = 'artemis-controls-hint-dismissed';
+
 const state = {
   activeMissionId: ACTIVE_MISSION_ID,
   missionData: null,
@@ -71,11 +84,14 @@ const state = {
     followCamera: false,
     cameraPreset: 'mission-fit',
     lastNonFollowCamera: 'mission-fit',
+    visualPreset: 'bright',
+    zoomLevel: 0.5,
   },
 };
 
 let refs = null;
 let _lastSyncedUrl = '';
+let _lastZoomUiValue = -1;
 
 bootstrapApp();
 
@@ -84,6 +100,7 @@ function bootstrapApp() {
     refs = getDomRefs();
     try {
       createScene(refs.canvas);
+      setZoomChangeListener(() => syncZoomUiFromScene(true));
       state.diagnostics.sceneInitialized = true;
       state.diagnostics.rendererInitialized = true;
     } catch (error) {
@@ -97,9 +114,12 @@ function bootstrapApp() {
 
     buildSpeedOptions();
     buildPerformanceOptions();
+    buildVisualPresetOptions();
     buildTabs();
     wireUiEvents();
     parseInitialUiStateFromUrl();
+    syncZoomUiFromScene(true);
+    showControlsHintIfNeeded();
 
     selectMission(state.activeMissionId)
       .catch((error) => handleStartupError('Mission loading failed', error));
@@ -152,8 +172,14 @@ function getDomRefs() {
     btnCamFollow: pick('btn-cam-follow'),
     btnZoomIn: pick('btn-zoom-in'),
     btnZoomOut: pick('btn-zoom-out'),
+    btnZoomReset: pick('btn-zoom-reset'),
+    zoomSlider: pick('zoom-slider'),
+    zoomValue: pick('zoom-value'),
+    visualPresetSelect: pick('visual-preset-select'),
     perfModeSelect: pick('perf-select'),
     btnCopyLink: pick('btn-copy-link'),
+    controlsHint: pick('controls-hint'),
+    btnDismissHint: pick('btn-dismiss-hint'),
     annotationList: pick('mission-annotations'),
   };
 }
@@ -183,6 +209,17 @@ function buildPerformanceOptions() {
     option.textContent = opt.label;
     if (opt.value === state.ui.performanceMode) option.selected = true;
     refs.perfModeSelect.appendChild(option);
+  }
+}
+
+function buildVisualPresetOptions() {
+  refs.visualPresetSelect.innerHTML = '';
+  for (const opt of VISUAL_PRESET_OPTIONS) {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === getVisualPreset()) option.selected = true;
+    refs.visualPresetSelect.appendChild(option);
   }
 }
 
@@ -262,12 +299,30 @@ function wireUiEvents() {
   });
   refs.btnZoomIn.addEventListener('click', () => {
     zoomCamera(1);
+    syncZoomUiFromScene(true);
     setSidebarStatus('Zoomed in');
   });
   refs.btnZoomOut.addEventListener('click', () => {
     zoomCamera(-1);
+    syncZoomUiFromScene(true);
     setSidebarStatus('Zoomed out');
   });
+  refs.btnZoomReset.addEventListener('click', () => {
+    resetZoom();
+    syncZoomUiFromScene(true);
+    setSidebarStatus('Zoom reset');
+  });
+  refs.zoomSlider.addEventListener('input', () => {
+    const max = Number(refs.zoomSlider.max) || 1000;
+    const f = Number(refs.zoomSlider.value) / max;
+    setZoomLevel(clamp(f, 0, 1));
+    syncZoomUiFromScene(true);
+  });
+  refs.visualPresetSelect.addEventListener('change', () => {
+    setVisualPresetUi(refs.visualPresetSelect.value);
+    setSidebarStatus(`Visual preset: ${state.ui.visualPreset}`);
+  });
+  refs.btnDismissHint.addEventListener('click', () => hideControlsHint({ persist: true }));
 
   refs.speedSelect.addEventListener('change', () => {
     const selected = refs.speedSelect.options[refs.speedSelect.selectedIndex];
@@ -428,9 +483,11 @@ function startRafLoop() {
 
     try {
       renderScene();
+      if (!state.scrubbing) syncZoomUiFromScene(false);
     } catch (error) {
       handleStartupError('Render loop failure', error);
     }
+    syncZoomUiFromScene();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -705,13 +762,20 @@ function onKeyboardShortcuts(event) {
   if (event.key === '+' || event.key === '=') {
     event.preventDefault();
     zoomCamera(1);
+    syncZoomUiFromScene(true);
     setSidebarStatus('Zoomed in');
     return;
   }
   if (event.key === '-' || event.key === '_') {
     event.preventDefault();
     zoomCamera(-1);
+    syncZoomUiFromScene(true);
     setSidebarStatus('Zoomed out');
+    return;
+  }
+  if (event.code === 'KeyR') {
+    event.preventDefault();
+    refs.btnZoomReset.click();
   }
 }
 
@@ -751,6 +815,8 @@ function parseInitialUiStateFromUrl() {
   const perf = params.get('perf');
   const follow = params.get('follow');
   const cam = params.get('cam');
+  const zoom = params.get('zoom');
+  const vpreset = params.get('vpreset');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
@@ -770,6 +836,19 @@ function parseInitialUiStateFromUrl() {
   if (state.ui.cameraPreset === 'follow-orion') state.ui.followCamera = true;
   setFollowButtonUi();
   setFollowCameraEnabled(state.ui.followCamera);
+  const presetMatch = VISUAL_PRESET_OPTIONS.find((opt) => opt.value === vpreset)?.value || getVisualPreset();
+  setVisualPreset(presetMatch);
+  state.ui.visualPreset = getVisualPreset();
+  setVisualPresetUi(state.ui.visualPreset, { sync: false });
+  if (zoom != null) {
+    const parsedZoom = Number(zoom);
+    if (Number.isFinite(parsedZoom)) {
+      setZoomLevel(clamp(parsedZoom, 0, 1));
+      state.ui.zoomLevel = getZoomLevel();
+    }
+  } else {
+    state.ui.zoomLevel = getZoomLevel();
+  }
 }
 
 function applyInitialTimeOverrideFromUrl() {
@@ -790,11 +869,55 @@ function syncUrlState() {
   params.set('perf', state.ui.performanceMode);
   params.set('follow', state.ui.followCamera ? '1' : '0');
   params.set('cam', state.ui.cameraPreset);
+  params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
+  params.set('vpreset', state.ui.visualPreset || getVisualPreset());
   const query = params.toString();
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
   if (_lastSyncedUrl !== next) {
     history.replaceState(null, '', next);
     _lastSyncedUrl = next;
+  }
+}
+
+function syncZoomUiFromScene(syncUrl = false) {
+  const zoomLevel = clamp(getZoomLevel(), 0, 1);
+  state.ui.zoomLevel = zoomLevel;
+  const max = Number(refs.zoomSlider.max) || 1000;
+  const nextSlider = Math.round(zoomLevel * max);
+  refs.zoomSlider.value = String(nextSlider);
+  const changed = _lastZoomUiValue !== nextSlider;
+  if (changed || syncUrl) {
+    refs.zoomValue.textContent = `${Math.round(zoomLevel * 100)}%`;
+    _lastZoomUiValue = nextSlider;
+  }
+  if (changed || syncUrl) syncUrlState();
+}
+
+function setVisualPresetUi(value, { sync = true } = {}) {
+  const nextPreset = VISUAL_PRESET_OPTIONS.find((opt) => opt.value === value)?.value || getVisualPreset();
+  setVisualPreset(nextPreset);
+  state.ui.visualPreset = getVisualPreset();
+  refs.visualPresetSelect.value = state.ui.visualPreset;
+  if (sync) syncUrlState();
+}
+
+function showControlsHintIfNeeded() {
+  let dismissed = false;
+  try {
+    dismissed = window.localStorage.getItem(CONTROLS_HINT_STORAGE_KEY) === '1';
+  } catch {
+    dismissed = false;
+  }
+  refs.controlsHint.classList.toggle('hidden', dismissed);
+}
+
+function hideControlsHint({ persist = false } = {}) {
+  refs.controlsHint.classList.add('hidden');
+  if (!persist) return;
+  try {
+    window.localStorage.setItem(CONTROLS_HINT_STORAGE_KEY, '1');
+  } catch {
+    // localStorage might be unavailable in some browser modes.
   }
 }
 
