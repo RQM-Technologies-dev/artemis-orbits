@@ -26,6 +26,10 @@
       <canvas id="three-canvas"></canvas>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
       <pre id="scene-debug-overlay" class="scene-debug-overlay" aria-live="polite"></pre>
+      <div id="controls-hint" class="controls-hint hidden" role="dialog" aria-live="polite" aria-label="Viewer controls help">
+        <p class="controls-hint-text">Drag to orbit, wheel or pinch to zoom, and use <strong>+</strong>/<strong>-</strong> keys for quick zoom.</p>
+        <button id="btn-dismiss-hint" class="btn btn-sm controls-hint-dismiss" type="button" aria-label="Dismiss controls hint">Got it</button>
+      </div>
     </section>
 
     <aside id="sidebar">
@@ -104,6 +108,23 @@
         <div class="controls-row">
           <button id="btn-cam-follow" class="btn btn-sm">Follow Orion: Off</button>
         </div>
+        <div class="controls-row speed-row">
+          <label for="visual-preset-select" class="ctrl-label">Visuals</label>
+          <select id="visual-preset-select" class="select" aria-label="Visual brightness preset"></select>
+        </div>
+        <div class="controls-row speed-row zoom-row">
+          <label for="zoom-slider" class="ctrl-label">Zoom</label>
+          <span id="zoom-value" class="zoom-value">50%</span>
+        </div>
+        <div class="slider-row">
+          <input type="range" id="zoom-slider" min="0" max="1000" value="500" step="1" class="slider" aria-label="Camera zoom level" />
+        </div>
+        <div class="controls-row">
+          <button id="btn-zoom-in" class="btn btn-sm" title="Zoom in (+)" aria-label="Zoom in">Zoom +</button>
+          <button id="btn-zoom-out" class="btn btn-sm" title="Zoom out (-)" aria-label="Zoom out">Zoom −</button>
+          <button id="btn-zoom-reset" class="btn btn-sm" title="Reset camera zoom" aria-label="Reset zoom">Reset zoom</button>
+        </div>
+        <p class="hint-text">Zoom shortcuts: + / − keys, mouse wheel, or touch pinch.</p>
       </div>
 
       <div class="card" id="annotations-card">

@@ -4,6 +4,9 @@
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 import { kmToScene } from './units.js';
 
@@ -16,6 +19,17 @@ const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
 const FALLBACK_CANVAS_HEIGHT = 540;
 const CAMERA_TRANSITION_MS = 700;
+const ZOOM_FACTOR_PER_STEP = 1.2;
+const DEFAULT_TONE_EXPOSURE = 1.18;
+const AUTO_EXPOSURE_MIN = 1.04;
+const AUTO_EXPOSURE_MAX = 1.45;
+const AUTO_EXPOSURE_SMOOTHING = 0.08;
+const FOLLOW_DISTANCE_MIN = 0.35;
+const FOLLOW_DISTANCE_MAX = 4.5;
+const BLOOM_DISABLED = { enabled: false, strength: 0, radius: 0, threshold: 1 };
+const BLOOM_STANDARD = { enabled: true, strength: 0.13, radius: 0.55, threshold: 0.88 };
+const BLOOM_BRIGHT = { enabled: true, strength: 0.17, radius: 0.57, threshold: 0.84 };
+const BLOOM_CONTRAST = { enabled: true, strength: 0.12, radius: 0.5, threshold: 0.9 };
 
 const PLANET_TEXTURE_URLS = {
   earthColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_atmos_2048.jpg',
@@ -28,9 +42,15 @@ let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
 let _starField;
+let _composer = null;
+let _bloomPass = null;
 let _cameraTransition = null;
 let _followCameraEnabled = false;
+let _followCameraDistanceScale = 1;
+let _sceneVisualPreset = 'standard';
+let _visualPresetConfig = null;
 let _eventMarkerClickHandler = null;
+let _zoomChangeListener = null;
 let _pointerDown = null;
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
@@ -42,8 +62,10 @@ export function createScene(canvas) {
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
-  _renderer.setClearColor(0x000005);
+  _renderer.setClearColor(0x060d1a);
   _renderer.outputColorSpace = THREE.SRGBColorSpace;
+  _renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  _renderer.toneMappingExposure = DEFAULT_TONE_EXPOSURE;
 
   _scene = new THREE.Scene();
 
@@ -51,17 +73,17 @@ export function createScene(canvas) {
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _scene.add(new THREE.AmbientLight(0x5f7fb0, 1.45));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  _scene.add(new THREE.AmbientLight(0x88b1ff, 1.95));
+  const sun = new THREE.DirectionalLight(0xffffff, 3.05);
   sun.position.set(50, 30, 80);
   _scene.add(sun);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x5a92e8,
-    emissive: 0x132f58,
-    shininess: 18,
-    specular: 0x2d2d2d,
+    color: 0x8cb9ff,
+    emissive: 0x265089,
+    shininess: 24,
+    specular: 0x5a6272,
   });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
@@ -69,9 +91,9 @@ export function createScene(canvas) {
 
   const atmosphereGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM * 1.05), 48, 32);
   const atmosphereMat = new THREE.MeshLambertMaterial({
-    color: 0x6fb2ff,
+    color: 0x9fd3ff,
     transparent: true,
-    opacity: 0.16,
+    opacity: 0.28,
     side: THREE.BackSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -81,21 +103,21 @@ export function createScene(canvas) {
 
   const moonGeo = new THREE.SphereGeometry(kmToScene(MOON_RADIUS_KM), 32, 24);
   const moonMat = new THREE.MeshPhongMaterial({
-    color: 0xd3d3d3,
-    emissive: 0x242424,
-    shininess: 5,
+    color: 0xf0f2ff,
+    emissive: 0x3f3f3f,
+    shininess: 10,
   });
   _moonMesh = new THREE.Mesh(moonGeo, moonMat);
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
 
   const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
-  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffdd44 }));
+  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffef78 }));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
-  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.25 }));
+  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffefb0, transparent: true, opacity: 0.42 }));
   _orionHalo.visible = true;
   _scene.add(_orionHalo);
 
@@ -112,13 +134,22 @@ export function createScene(canvas) {
   _controls = new OrbitControls(_camera, _renderer.domElement);
   _controls.enableDamping = true;
   _controls.dampingFactor = 0.08;
-  _controls.minDistance = 0.1;
-  _controls.maxDistance = 600;
+  _controls.enableZoom = true;
+  _controls.zoomSpeed = 1.15;
+  _controls.minDistance = 0.08;
+  _controls.maxDistance = 820;
 
   _renderer.domElement.addEventListener('pointerdown', _onPointerDown);
   _renderer.domElement.addEventListener('pointerup', _onPointerUp);
+  _renderer.domElement.addEventListener('wheel', _onWheel, { passive: true });
+
+  _composer = new EffectComposer(_renderer);
+  _composer.addPass(new RenderPass(_scene, _camera));
+  _bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0, 0, 1);
+  _composer.addPass(_bloomPass);
 
   _loadPlanetTextures(earthMat, moonMat);
+  setVisualPreset('standard');
   setPerformanceMode('auto');
   showFallbackBodies();
   focusCameraPreset('fallback-overview', { instant: true });
@@ -144,7 +175,7 @@ export function updateBodies(orionKm, moonKm) {
 export function setMissionTrailsBySegment(segments) {
   clearGroup(_fullTrailGroup);
   for (const seg of segments || []) {
-    const line = makeLineFromSamples(seg.samples || [], { color: 0x4a90e2, opacity: 0.25, linewidth: 1 });
+    const line = makeLineFromSamples(seg.samples || [], { color: 0x79bcff, opacity: 0.42, linewidth: 1 });
     if (line) _fullTrailGroup.add(line);
   }
 }
@@ -154,7 +185,7 @@ export function setTraversedTrailBySegment(segments, currentMs) {
   for (const seg of segments || []) {
     const traversed = getTraversedSamples(seg.samples || [], currentMs);
     if (traversed.length < 2) continue;
-    const line = makeLineFromSamples(traversed, { color: 0x8fd3ff, opacity: 0.95, linewidth: 2 });
+    const line = makeLineFromSamples(traversed, { color: 0xbdeaff, opacity: 1, linewidth: 2 });
     if (line) _traversedTrailGroup.add(line);
   }
 }
@@ -166,7 +197,7 @@ export function setEventMarkers(markers) {
 
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(kmToScene(180), 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xff77aa, transparent: true, opacity: 0.9 }),
+      new THREE.MeshBasicMaterial({ color: 0xff9fcb, transparent: true, opacity: 0.98 }),
     );
     sphere.position.set(
       kmToScene(marker.positionKm[0]),
@@ -242,14 +273,18 @@ export function resizeScene(width, height) {
   _camera.aspect = safeWidth / safeHeight;
   _camera.updateProjectionMatrix();
   _renderer.setSize(safeWidth, safeHeight, false);
+  _composer?.setSize(safeWidth, safeHeight);
+  if (_bloomPass) _bloomPass.resolution.set(safeWidth, safeHeight);
 }
 
 export function renderScene() {
   if (!_renderer) return;
   _tickCameraTransition();
   _tickFollowCamera();
+  _tickAutoExposure();
   _controls.update();
-  _renderer.render(_scene, _camera);
+  if (_composer && _bloomPass?.enabled) _composer.render();
+  else _renderer.render(_scene, _camera);
 }
 
 export function setPerformanceMode(mode) {
@@ -267,13 +302,131 @@ export function setPerformanceMode(mode) {
   else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
   else _renderer.setPixelRatio(1);
   if (_starField) _starField.visible = effective !== 'low';
+  if (_bloomPass) {
+    const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
+    _bloomPass.enabled = bloomAllowed;
+  }
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
+  _composer?.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT);
 }
 
 export function setFollowCameraEnabled(enabled) {
   _followCameraEnabled = Boolean(enabled);
   if (!_followCameraEnabled) return;
   _cameraTransition = null;
+  _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
+  _notifyZoomChange();
+}
+
+export function zoomCamera(step = 1) {
+  if (!_camera || !_controls) return;
+  const safeStep = Number.isFinite(step) ? step : 1;
+  if (!safeStep) return;
+  const factor = safeStep > 0
+    ? 1 / (ZOOM_FACTOR_PER_STEP ** safeStep)
+    : ZOOM_FACTOR_PER_STEP ** (-safeStep);
+
+  if (_followCameraEnabled) {
+    _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale * factor);
+    _notifyZoomChange();
+    return;
+  }
+
+  const offset = _camera.position.clone().sub(_controls.target);
+  const currentDistance = offset.length();
+  if (!Number.isFinite(currentDistance) || currentDistance <= 0) return;
+
+  const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
+  const maxDistance = Number.isFinite(_controls.maxDistance) ? _controls.maxDistance : 600;
+  const nextDistance = THREE.MathUtils.clamp(currentDistance * factor, minDistance, maxDistance);
+  if (Math.abs(nextDistance - currentDistance) < 1e-6) return;
+
+  offset.setLength(nextDistance);
+  _camera.position.copy(_controls.target.clone().add(offset));
+  _cameraTransition = null;
+  _controls.update();
+  _notifyZoomChange();
+}
+
+export function setZoomLevel(normalized) {
+  if (!_camera || !_controls) return;
+  const f = THREE.MathUtils.clamp(Number(normalized), 0, 1);
+  if (_followCameraEnabled) {
+    const targetScale = FOLLOW_DISTANCE_MIN + (1 - f) * (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN);
+    _followCameraDistanceScale = clampDistanceScale(targetScale);
+    _notifyZoomChange();
+    return;
+  }
+  const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
+  const maxDistance = Number.isFinite(_controls.maxDistance) ? _controls.maxDistance : 600;
+  const targetDistance = minDistance + (1 - f) * (maxDistance - minDistance);
+  const offset = _camera.position.clone().sub(_controls.target);
+  if (offset.lengthSq() <= 0) return;
+  offset.setLength(THREE.MathUtils.clamp(targetDistance, minDistance, maxDistance));
+  _camera.position.copy(_controls.target.clone().add(offset));
+  _cameraTransition = null;
+  _controls.update();
+  _notifyZoomChange();
+}
+
+export function getZoomLevel() {
+  if (!_camera || !_controls) return 0.5;
+  if (_followCameraEnabled) {
+    const pct = 1 - ((_followCameraDistanceScale - FOLLOW_DISTANCE_MIN) / (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN));
+    return THREE.MathUtils.clamp(pct, 0, 1);
+  }
+  const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
+  const maxDistance = Number.isFinite(_controls.maxDistance) ? _controls.maxDistance : 600;
+  const distance = _camera.position.distanceTo(_controls.target);
+  if (!Number.isFinite(distance) || maxDistance <= minDistance) return 0.5;
+  return THREE.MathUtils.clamp(1 - ((distance - minDistance) / (maxDistance - minDistance)), 0, 1);
+}
+
+export function resetZoom() {
+  setZoomLevel(0.5);
+}
+
+export function setZoomChangeListener(listener) {
+  _zoomChangeListener = typeof listener === 'function' ? listener : null;
+}
+
+export function setVisualPreset(preset) {
+  const key = String(preset || 'bright');
+  const settings = getVisualPresetSettings(key);
+  _sceneVisualPreset = settings.id;
+  _visualPresetConfig = settings;
+  if (!_renderer) return;
+  _renderer.toneMappingExposure = settings.baseExposure;
+  if (_earthMesh?.material) {
+    _earthMesh.material.color.setHex(settings.earthColor);
+    _earthMesh.material.emissive.setHex(settings.earthEmissive);
+    _earthMesh.material.shininess = settings.earthShininess;
+    _earthMesh.material.specular.setHex(settings.earthSpecular);
+  }
+  if (_moonMesh?.material) {
+    _moonMesh.material.color.setHex(settings.moonColor);
+    _moonMesh.material.emissive.setHex(settings.moonEmissive);
+    _moonMesh.material.shininess = settings.moonShininess;
+  }
+  if (_orionMarker?.material) _orionMarker.material.color.setHex(settings.orionColor);
+  if (_orionHalo?.material) {
+    _orionHalo.material.color.setHex(settings.orionHaloColor);
+    _orionHalo.material.opacity = settings.orionHaloOpacity;
+  }
+  if (_earthAtmosphere?.material) {
+    _earthAtmosphere.material.color.setHex(settings.atmosphereColor);
+    _earthAtmosphere.material.opacity = settings.atmosphereOpacity;
+  }
+  if (_starField?.material) {
+    _starField.material.color.setHex(settings.starColor);
+    _starField.material.opacity = settings.starOpacity;
+    _starField.material.size = settings.starSize;
+  }
+  _applyBloomSettings(settings.bloom);
+}
+
+export function getVisualPreset() {
+  return _sceneVisualPreset;
 }
 
 export function setEventMarkerClickHandler(handler) {
@@ -333,7 +486,16 @@ function _makeStarField(count) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, sizeAttenuation: true }));
+  return new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({
+      color: 0xe7f3ff,
+      size: 0.52,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9,
+    }),
+  );
 }
 
 function getSafeCanvasSize(canvas) {
@@ -403,9 +565,32 @@ function _tickCameraTransition() {
 function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
   const target = _orionMarker.position.clone();
-  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35));
+  _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
+  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35).multiplyScalar(_followCameraDistanceScale));
   _camera.position.lerp(desired, 0.075);
   _controls.target.lerp(target, 0.12);
+}
+
+function _tickAutoExposure() {
+  if (!_renderer || !_camera || !_controls || !_visualPresetConfig) return;
+  const targetDistance = _followCameraEnabled
+    ? THREE.MathUtils.lerp(_controls.minDistance, _controls.maxDistance, 0.2 + (_followCameraDistanceScale / FOLLOW_DISTANCE_MAX) * 0.45)
+    : _camera.position.distanceTo(_controls.target);
+  if (!Number.isFinite(targetDistance)) return;
+  const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
+  const maxDistance = Number.isFinite(_controls.maxDistance) ? _controls.maxDistance : 600;
+  const normalizedDistance = THREE.MathUtils.clamp((targetDistance - minDistance) / Math.max(1e-6, maxDistance - minDistance), 0, 1);
+  const spread = _visualPresetConfig.autoExposureSpread;
+  const targetExposure = THREE.MathUtils.clamp(
+    _visualPresetConfig.baseExposure + (normalizedDistance - 0.5) * spread,
+    AUTO_EXPOSURE_MIN,
+    AUTO_EXPOSURE_MAX,
+  );
+  _renderer.toneMappingExposure = THREE.MathUtils.lerp(
+    _renderer.toneMappingExposure,
+    targetExposure,
+    AUTO_EXPOSURE_SMOOTHING,
+  );
 }
 
 function _onPointerDown(event) {
@@ -431,4 +616,97 @@ function _onPointerUp(event) {
   const eventId = hit?.object?.userData?.eventId;
   if (!eventId) return;
   _eventMarkerClickHandler({ eventId });
+}
+
+function _onWheel() {
+  if (_followCameraEnabled) _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
+  _notifyZoomChange();
+}
+
+function clampDistanceScale(value) {
+  return THREE.MathUtils.clamp(value, FOLLOW_DISTANCE_MIN, FOLLOW_DISTANCE_MAX);
+}
+
+function getVisualPresetSettings(preset) {
+  if (preset === 'standard') {
+    return {
+      id: 'standard',
+      baseExposure: 1.08,
+      autoExposureSpread: 0.14,
+      earthColor: 0x7aa9f1,
+      earthEmissive: 0x1f446f,
+      earthSpecular: 0x4f596b,
+      earthShininess: 22,
+      moonColor: 0xe0e6f3,
+      moonEmissive: 0x323232,
+      moonShininess: 9,
+      orionColor: 0xffe766,
+      orionHaloColor: 0xffe8a4,
+      orionHaloOpacity: 0.36,
+      atmosphereColor: 0x86c2ff,
+      atmosphereOpacity: 0.24,
+      starColor: 0xdeefff,
+      starOpacity: 0.82,
+      starSize: 0.48,
+      bloom: BLOOM_STANDARD,
+    };
+  }
+  if (preset === 'high-contrast') {
+    return {
+      id: 'high-contrast',
+      baseExposure: 1.15,
+      autoExposureSpread: 0.16,
+      earthColor: 0x9fccff,
+      earthEmissive: 0x1b3f70,
+      earthSpecular: 0x677285,
+      earthShininess: 28,
+      moonColor: 0xf5f6ff,
+      moonEmissive: 0x2a2a2a,
+      moonShininess: 12,
+      orionColor: 0xfff07f,
+      orionHaloColor: 0xfff2be,
+      orionHaloOpacity: 0.45,
+      atmosphereColor: 0xaed9ff,
+      atmosphereOpacity: 0.3,
+      starColor: 0xf1f7ff,
+      starOpacity: 0.93,
+      starSize: 0.54,
+      bloom: BLOOM_CONTRAST,
+    };
+  }
+  return {
+    id: 'bright',
+    baseExposure: 1.2,
+    autoExposureSpread: 0.18,
+    earthColor: 0x8cb9ff,
+    earthEmissive: 0x265089,
+    earthSpecular: 0x5a6272,
+    earthShininess: 24,
+    moonColor: 0xf0f2ff,
+    moonEmissive: 0x3f3f3f,
+    moonShininess: 10,
+    orionColor: 0xffef78,
+    orionHaloColor: 0xffefb0,
+    orionHaloOpacity: 0.42,
+    atmosphereColor: 0x9fd3ff,
+    atmosphereOpacity: 0.28,
+    starColor: 0xe7f3ff,
+    starOpacity: 0.9,
+    starSize: 0.52,
+    bloom: BLOOM_BRIGHT,
+  };
+}
+
+function _applyBloomSettings(bloom) {
+  if (!_bloomPass) return;
+  const config = bloom || BLOOM_DISABLED;
+  _bloomPass.enabled = config.enabled !== false;
+  _bloomPass.strength = Number.isFinite(config.strength) ? config.strength : 0;
+  _bloomPass.radius = Number.isFinite(config.radius) ? config.radius : 0;
+  _bloomPass.threshold = Number.isFinite(config.threshold) ? config.threshold : 1;
+}
+
+function _notifyZoomChange() {
+  if (!_zoomChangeListener) return;
+  _zoomChangeListener();
 }
