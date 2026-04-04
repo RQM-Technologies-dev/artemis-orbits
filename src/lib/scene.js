@@ -46,6 +46,10 @@ let _orionBodyMaterial = null;
 let _orionNoseMaterial = null;
 let _orionShieldMaterial = null;
 let _orionAccentMaterial = null;
+let _orionServiceMaterial = null;
+let _orionPanelMaterial = null;
+let _orionEngineMaterial = null;
+let _orionTrussMaterial = null;
 let _composer = null;
 let _bloomPass = null;
 let _cameraTransition = null;
@@ -513,22 +517,26 @@ function _makeStarField(count) {
 }
 
 function _makeOrionCapsule(radius) {
-  const capsule = new THREE.Group();
-  const radialSegments = 18;
-  const bodyRadiusTop = radius * 0.62;
-  const bodyRadiusBottom = radius * 0.82;
-  const bodyHeight = radius * 1.04;
-  const noseHeight = radius * 0.84;
-  const shieldHeight = radius * 0.2;
+  const stack = new THREE.Group();
+  const radialSegments = 20;
+  const crewRadiusTop = radius * 0.55;
+  const crewRadiusBottom = radius * 0.8;
+  const crewHeight = radius * 1.0;
+  const noseHeight = radius * 0.75;
+  const shieldHeight = radius * 0.18;
+  const serviceRadius = radius * 0.56;
+  const serviceHeight = radius * 0.8;
+  const engineHeight = radius * 0.42;
+  const engineRadius = radius * 0.17;
 
   _orionBodyMaterial = new THREE.MeshPhongMaterial({
-    color: 0xd2d9e4,
-    emissive: 0x202735,
+    color: 0xdce3ee,
+    emissive: 0x1f2734,
     shininess: 40,
-    specular: 0x8a93a5,
+    specular: 0x98a5b8,
   });
   _orionNoseMaterial = new THREE.MeshPhongMaterial({
-    color: 0xe8edf4,
+    color: 0xeaf0f7,
     emissive: 0x1d2330,
     shininess: 48,
     specular: 0xa8b4c5,
@@ -542,53 +550,147 @@ function _makeOrionCapsule(radius) {
   _orionAccentMaterial = new THREE.MeshBasicMaterial({
     color: 0xffef78,
     transparent: true,
-    opacity: 0.82,
+    opacity: 0.8,
+  });
+  _orionServiceMaterial = new THREE.MeshPhongMaterial({
+    color: 0xa2acbf,
+    emissive: 0x1a2130,
+    shininess: 22,
+    specular: 0x667087,
+  });
+  _orionPanelMaterial = new THREE.MeshPhongMaterial({
+    color: 0x4f6da6,
+    emissive: 0x0d1730,
+    shininess: 55,
+    specular: 0x9cb9f1,
+    side: THREE.DoubleSide,
+  });
+  _orionEngineMaterial = new THREE.MeshPhongMaterial({
+    color: 0x7e7263,
+    emissive: 0x231d17,
+    shininess: 16,
+    specular: 0x473f35,
+  });
+  _orionTrussMaterial = new THREE.MeshPhongMaterial({
+    color: 0x8894a9,
+    emissive: 0x171e2a,
+    shininess: 18,
+    specular: 0x596277,
   });
 
-  const body = new THREE.Mesh(
-    new THREE.CylinderGeometry(bodyRadiusTop, bodyRadiusBottom, bodyHeight, radialSegments, 1, false),
+  const crewBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(crewRadiusTop, crewRadiusBottom, crewHeight, radialSegments, 1, false),
     _orionBodyMaterial,
   );
-  capsule.add(body);
+  stack.add(crewBody);
 
   const nose = new THREE.Mesh(
-    new THREE.ConeGeometry(bodyRadiusTop, noseHeight, radialSegments),
+    new THREE.ConeGeometry(crewRadiusTop, noseHeight, radialSegments),
     _orionNoseMaterial,
   );
-  nose.position.y = (bodyHeight * 0.5) + (noseHeight * 0.5) - (radius * 0.06);
-  capsule.add(nose);
+  nose.position.y = (crewHeight * 0.5) + (noseHeight * 0.5) - (radius * 0.04);
+  stack.add(nose);
 
   const heatShield = new THREE.Mesh(
-    new THREE.CylinderGeometry(bodyRadiusBottom * 1.07, bodyRadiusBottom * 1.12, shieldHeight, radialSegments),
+    new THREE.CylinderGeometry(crewRadiusBottom * 1.07, crewRadiusBottom * 1.12, shieldHeight, radialSegments),
     _orionShieldMaterial,
   );
-  heatShield.position.y = -((bodyHeight * 0.5) + (shieldHeight * 0.5) - (radius * 0.07));
-  capsule.add(heatShield);
+  heatShield.position.y = -((crewHeight * 0.5) + (shieldHeight * 0.5) - (radius * 0.08));
+  stack.add(heatShield);
 
-  const accentRing = new THREE.Mesh(
-    new THREE.TorusGeometry(bodyRadiusTop * 0.95, radius * 0.06, 10, 20),
+  const dockingRing = new THREE.Mesh(
+    new THREE.TorusGeometry(crewRadiusTop * 0.85, radius * 0.04, 10, 24),
     _orionAccentMaterial,
   );
-  accentRing.rotation.x = Math.PI / 2;
-  accentRing.position.y = bodyHeight * 0.1;
-  capsule.add(accentRing);
+  dockingRing.rotation.x = Math.PI / 2;
+  dockingRing.position.y = (crewHeight * 0.5) + (radius * 0.04);
+  stack.add(dockingRing);
+
+  const serviceY = heatShield.position.y - (shieldHeight * 0.5) - (serviceHeight * 0.5) + (radius * 0.04);
+  const serviceModule = new THREE.Mesh(
+    new THREE.CylinderGeometry(serviceRadius * 0.97, serviceRadius, serviceHeight, radialSegments, 1, false),
+    _orionServiceMaterial,
+  );
+  serviceModule.position.y = serviceY;
+  stack.add(serviceModule);
+
+  const truss = new THREE.Mesh(
+    new THREE.TorusGeometry(serviceRadius * 1.02, radius * 0.03, 8, 24),
+    _orionTrussMaterial,
+  );
+  truss.rotation.x = Math.PI / 2;
+  truss.position.y = serviceY + (serviceHeight * 0.28);
+  stack.add(truss);
+
+  const engineBell = new THREE.Mesh(
+    new THREE.ConeGeometry(engineRadius, engineHeight, radialSegments),
+    _orionEngineMaterial,
+  );
+  engineBell.rotation.x = Math.PI;
+  engineBell.position.y = serviceY - (serviceHeight * 0.5) - (engineHeight * 0.45);
+  stack.add(engineBell);
+
+  const panelLength = radius * 0.95;
+  const panelWidth = radius * 0.24;
+  const panelThickness = radius * 0.03;
+  const panelOffset = serviceRadius + (panelLength * 0.5) + (radius * 0.09);
+  const panelY = serviceY;
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI * 2 * i) / 4;
+    const panelPivot = new THREE.Group();
+    panelPivot.position.y = panelY;
+    panelPivot.rotation.y = angle;
+
+    const boom = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.024, radius * 0.024, panelOffset * 0.78, 8),
+      _orionTrussMaterial,
+    );
+    boom.rotation.z = Math.PI / 2;
+    boom.position.x = panelOffset * 0.39;
+    panelPivot.add(boom);
+
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(panelLength, panelWidth, panelThickness),
+      _orionPanelMaterial,
+    );
+    panel.position.x = panelOffset;
+    panel.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.05;
+    panelPivot.add(panel);
+
+    stack.add(panelPivot);
+  }
 
   // Tilt slightly so the capsule silhouette reads in most camera angles.
-  capsule.rotation.z = Math.PI * 0.08;
-  return capsule;
+  stack.rotation.z = Math.PI * 0.08;
+  return stack;
 }
 
 function _applyOrionCapsuleVisual(orionColorHex) {
   const accent = new THREE.Color(orionColorHex);
-  const bodyBase = new THREE.Color(0xd2d9e4);
-  const noseBase = new THREE.Color(0xe8edf4);
+  const bodyBase = new THREE.Color(0xdce3ee);
+  const noseBase = new THREE.Color(0xeaf0f7);
+  const serviceBase = new THREE.Color(0xa2acbf);
+  const panelBase = new THREE.Color(0x4f6da6);
+  const trussBase = new THREE.Color(0x8894a9);
   if (_orionBodyMaterial) {
-    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.22);
-    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.08);
+    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.18);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.06);
   }
   if (_orionNoseMaterial) {
-    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.12);
-    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.05);
+    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.1);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.04);
+  }
+  if (_orionServiceMaterial) {
+    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.15);
+    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.04);
+  }
+  if (_orionPanelMaterial) {
+    _orionPanelMaterial.color.copy(panelBase).lerp(accent, 0.08);
+    _orionPanelMaterial.emissive.copy(accent).multiplyScalar(0.02);
+  }
+  if (_orionTrussMaterial) {
+    _orionTrussMaterial.color.copy(trussBase).lerp(accent, 0.1);
+    _orionTrussMaterial.emissive.copy(accent).multiplyScalar(0.03);
   }
   if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
 }
