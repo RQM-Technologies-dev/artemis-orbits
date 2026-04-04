@@ -24,7 +24,8 @@ export const loadMissionData = loadJson;
 
 /**
  * Resolve a relative asset path against the current module.
- * Keeps deployments safe under subpaths (e.g. /NASA/Artemis/).
+ * Keeps asset URLs relative to the current document so prefixed deployments
+ * work when the host rewrites the prefix back to the repo root.
  *
  * @param {string} path
  * @returns {string}

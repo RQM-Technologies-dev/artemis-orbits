@@ -12,6 +12,7 @@ import {
   focusCameraPreset,
   resizeScene,
   renderScene,
+  resetSceneDynamicState,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -136,12 +137,11 @@ async function selectMission(id) {
 
   sbTitle.textContent = mission.displayName;
   sbSummary.textContent = mission.summary;
-  sbFrame.textContent = '—';
+  resetLoadedMissionState();
 
   if (!mission.enabled) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
     setStatus('Data missing: mission placeholder (disabled).');
-    sbSampleCount.textContent = '—';
     return;
   }
 
@@ -151,12 +151,8 @@ async function selectMission(id) {
   events = sortEvents(loadedEvents);
 
   if (!missionData) {
-    showOverlay('Normalized mission data missing. Run scripts/normalize_oem.py and scripts/fetch_moon_vectors.py.');
+    showOverlay('Normalized mission data missing. Run scripts/normalize_oem.py to generate mission JSON.');
     setStatus('Data missing: normalized mission JSON unavailable.');
-    sbSampleCount.textContent = '—';
-    flatSamples = [];
-    flatMoon = [];
-    events = [];
     return;
   }
 
@@ -354,6 +350,27 @@ function refreshTimelineEventTicks() {
     tick.title = `${event.label} — ${event.epochUtc}`;
     timelineTicks.appendChild(tick);
   }
+}
+
+function resetLoadedMissionState() {
+  missionData = null;
+  moonData = null;
+  events = [];
+  eventMarkers = [];
+  segmentBounds = [];
+  flatSamples = [];
+  flatMoon = [];
+  missionStartMs = 0;
+  missionStopMs = 0;
+  currentMs = 0;
+  timelineSlider.value = timelineSlider.min;
+  sbUtc.textContent = '—';
+  sbMet.textContent = '—';
+  sbFrame.textContent = '—';
+  sbSampleCount.textContent = '—';
+  sbEvent.textContent = 'No events loaded';
+  refreshTimelineEventTicks();
+  resetSceneDynamicState();
 }
 
 function onResize() {

@@ -3,6 +3,7 @@
   "trailingSlash": true,
   "rewrites": [
     { "source": "/NASA/Artemis", "destination": "/NASA/Artemis/" },
-    { "source": "/NASA/Artemis/", "destination": "/" }
+    { "source": "/NASA/Artemis/", "destination": "/" },
+    { "source": "/NASA/Artemis/:path*", "destination": "/:path*" }
   ]
 }

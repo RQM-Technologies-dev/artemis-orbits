@@ -1,8 +1,8 @@
 /**
  * missions.js – mission configuration array.
  *
- * All data paths are relative so the site works from any subpath
- * (e.g. /NASA/Artemis/ or GitHub Pages root).
+ * All data paths stay relative so the site works from `/`
+ * and from prefixed deployments whose host strips the prefix.
  */
 
 export const ACTIVE_MISSION_ID = 'artemis-2';
