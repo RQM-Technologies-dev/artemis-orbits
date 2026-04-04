@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NASA Artemis Orbits</title>
   <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <header id="app-header">
@@ -69,12 +76,21 @@
           <select id="speed-select" class="select"></select>
         </div>
 
+        <div class="controls-row speed-row">
+          <label for="perf-select" class="ctrl-label">Performance</label>
+          <select id="perf-select" class="select"></select>
+        </div>
+
         <div class="slider-row">
           <label for="timeline-slider" class="ctrl-label">Timeline</label>
           <div class="timeline-track-wrap">
             <input type="range" id="timeline-slider" min="0" max="1000" value="0" step="1" class="slider" />
             <div id="timeline-ticks" class="timeline-ticks" aria-hidden="true"></div>
           </div>
+        </div>
+
+        <div class="controls-row">
+          <button id="btn-copy-link" class="btn btn-sm">Copy share link</button>
         </div>
       </div>
 
@@ -85,6 +101,14 @@
           <button id="btn-cam-moon" class="btn btn-sm">Moon-approach</button>
           <button id="btn-cam-fit" class="btn btn-sm">Mission-fit</button>
         </div>
+        <div class="controls-row">
+          <button id="btn-cam-follow" class="btn btn-sm">Follow Orion: Off</button>
+        </div>
+      </div>
+
+      <div class="card" id="annotations-card">
+        <h3>Mission annotations</h3>
+        <ul id="mission-annotations" class="annotation-list"></ul>
       </div>
     </aside>
   </main>

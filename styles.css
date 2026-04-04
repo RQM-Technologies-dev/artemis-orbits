@@ -79,6 +79,7 @@ html, body {
 .legend-swatch.traversed-route { background: #8fd3ff; }
 .legend-swatch.orion-now { background: #ffdd44; }
 .legend-swatch.event-marker { background: #ff77aa; }
+.hint-text { color: var(--text-dim); font-size: .72rem; margin-top: 5px; }
 
 .controls-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .btn { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: #1a2338; color: var(--text); cursor: pointer; font-size: .77rem; }
@@ -88,14 +89,24 @@ html, body {
 .btn-sm { padding: 4px 7px; font-size: .72rem; flex: 1; }
 .speed-row { align-items: center; }
 .ctrl-label { font-size: .78rem; color: var(--text-dim); }
+.checkbox-label { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--text-dim); }
 
 .select { flex: 1; background: #111825; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 4px 6px; font-size: .8rem; }
 .select:focus { outline: none; border-color: var(--accent); }
 
 .slider-row { display: flex; flex-direction: column; gap: 4px; }
 .timeline-track-wrap { position: relative; }
-.timeline-ticks { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.timeline-ticks { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: auto; }
 .timeline-tick { position: absolute; top: -2px; width: 2px; height: 8px; background: #ff77aa; opacity: .7; transform: translateX(-1px); }
+.timeline-tick:hover { opacity: 1; cursor: pointer; box-shadow: 0 0 0 1px rgba(255, 119, 170, 0.4); }
+
+.annotation-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
+.annotation-list li { border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; background: rgba(12, 18, 31, 0.66); }
+.annotation-time { font-family: 'Courier New', monospace; font-size: .71rem; color: #9fc3ff; margin-bottom: 2px; }
+.annotation-label { font-size: .76rem; color: #dce8ff; }
+.annotation-note { margin-top: 2px; font-size: .7rem; color: var(--text-dim); }
+.annotation-link { margin-top: 2px; display: inline-block; color: #8dbdff; font-size: .7rem; text-decoration: none; }
+.annotation-link:hover { text-decoration: underline; }
 
 .slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: var(--border); outline: none; cursor: pointer; }
 .slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }

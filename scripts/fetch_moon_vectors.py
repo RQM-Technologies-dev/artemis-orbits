@@ -37,9 +37,9 @@ HORIZONS_API = 'https://ssd.jpl.nasa.gov/api/horizons.api'
 
 TARGET  = '301'          # Moon
 CENTER  = '500@399'      # Geocentre (Earth body centre)
-REF_FRAME = 'J2000'
+REF_SYSTEM = 'ICRF'
+REF_PLANE = 'FRAME'
 VEC_TABLE = '2'          # state vectors: X Y Z VX VY VZ
-UNITS   = 'KM-S'
 OUT_UNITS = 'KM-S'
 
 
@@ -67,6 +67,9 @@ def _parse_horizons_epoch(token: str) -> tuple[str, int]:
     or '2026-Apr-02 03:07:49.583' into (utcIsoZ, epochMs).
     """
     token = token.strip()
+    # Horizons v1.2+ commonly emits calendar dates prefixed with era markers:
+    # "A.D. 2022-Nov-16 08:44:51.0000"
+    token = re.sub(r'^(A\.D\.|B\.C\.)\s+', '', token)
     for fmt in (
         '%Y-%b-%d %H:%M:%S.%f',
         '%Y-%b-%d %H:%M:%S',
@@ -99,22 +102,30 @@ def query_horizons(start_utc: str, stop_utc: str, step: str = '4h') -> str:
     start_h = _utc_iso_to_horizons(start_utc)
     stop_h  = _utc_iso_to_horizons(stop_utc)
 
+    step = step.strip()
+    if re.fullmatch(r'^\d+[a-zA-Z]+$', step):
+        # Horizons API 1.2+ is happier with spaced fixed-step units (e.g. "4 h").
+        step = f'{step[:-1]} {step[-1]}'
+
     params = {
         'format':         'text',
         'COMMAND':        f"'{TARGET}'",
-        'OBJ_DATA':       'NO',
-        'MAKE_EPHEM':     'YES',
-        'EPHEM_TYPE':     'VECTORS',
-        'CENTER':         CENTER,
-        'REF_FRAME':      REF_FRAME,
+        'OBJ_DATA':       "'NO'",
+        'MAKE_EPHEM':     "'YES'",
+        'EPHEM_TYPE':     "'VECTORS'",
+        'CENTER':         f"'{CENTER}'",
+        'REF_SYSTEM':     f"'{REF_SYSTEM}'",
+        'REF_PLANE':      f"'{REF_PLANE}'",
         'START_TIME':     f"'{start_h}'",
         'STOP_TIME':      f"'{stop_h}'",
         'STEP_SIZE':      f"'{step}'",
-        'VEC_TABLE':      VEC_TABLE,
-        'VEC_CORR':       'NONE',
-        'OUT_UNITS':      OUT_UNITS,
-        'VEC_LABELS':     'YES',
-        'CSV_FORMAT':     'YES',
+        'VEC_TABLE':      f"'{VEC_TABLE}'",
+        'VEC_CORR':       "'NONE'",
+        'OUT_UNITS':      f"'{OUT_UNITS}'",
+        'VEC_LABELS':     "'YES'",
+        'CSV_FORMAT':     "'YES'",
+        'TIME_TYPE':      "'UT'",
+        'TIME_DIGITS':    "'FRACSEC'",
     }
 
     url = HORIZONS_API + '?' + urllib.parse.urlencode(params)
@@ -207,13 +218,13 @@ def build_moon_json(mission_id: str, samples: list[dict]) -> dict:
             'type':    'jpl-horizons',
             'target':  TARGET,
             'center':  CENTER,
-            'frame':   REF_FRAME,
+            'frame':   REF_SYSTEM,
             'units':   OUT_UNITS,
             'apiDocs': 'https://ssd-api.jpl.nasa.gov/doc/horizons.html',
         },
         'frame': {
             'centerName':     'EARTH',
-            'referenceFrame': REF_FRAME,
+            'referenceFrame': REF_SYSTEM,
             'timeSystem':     'UTC',
             'positionUnits':  'km',
             'velocityUnits':  'km/s',

@@ -1,0 +1,28 @@
+name: Data integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate normalized artifacts
+        run: python3 scripts/validate_normalized_data.py
+
+      - name: Verify playback timing
+        run: python3 scripts/verify_playback_timing.py --fail-on-issues
+
+      - name: Verify normalization tests
+        run: python3 tests/test_normalize.py

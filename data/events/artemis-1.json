@@ -1,12 +1,82 @@
 [
   {
-    "id": "todo-launch",
-    "label": "TODO Replace with verified Artemis I launch time",
-    "epochUtc": "2022-11-16T06:47:44Z",
-    "metSeconds": 0,
+    "id": "oem-window-start",
+    "label": "OEM data window start",
+    "epochUtc": "2022-11-16T08:44:51.150Z",
+    "metSeconds": 7027,
+    "type": "data-boundary",
+    "verified": true,
+    "sourceNote": "Exact epoch from committed normalized official NASA Artemis I OEM dataset (data/normalized/artemis-1.json).",
+    "description": "First available sample in the committed Artemis I normalized OEM file."
+  },
+  {
+    "id": "icps-separation",
+    "label": "Orion/ICPS separation",
+    "epochUtc": "2022-11-16T08:45:20Z",
+    "metSeconds": 7056,
     "type": "milestone",
-    "verified": false,
-    "sourceNote": "Placeholder timeline marker only. Confirm exact UTC against official NASA Artemis I mission materials before treating as authoritative.",
-    "description": "TODO: Replace all placeholder events with verified official NASA mission timeline entries."
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 000/01:57:36 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Orion separated from the interim cryogenic propulsion stage."
+  },
+  {
+    "id": "otc-2",
+    "label": "Outbound trajectory correction burn-2",
+    "epochUtc": "2022-11-17T11:35:15Z",
+    "metSeconds": 103651,
+    "type": "burn",
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 001/04:47:31 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Second outbound correction burn."
+  },
+  {
+    "id": "outbound-powered-flyby",
+    "label": "Outbound powered flyby burn",
+    "epochUtc": "2022-11-21T13:27:58Z",
+    "metSeconds": 456614,
+    "type": "burn",
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 005/06:40:14 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Main burn during outbound lunar flyby."
+  },
+  {
+    "id": "dro-insertion",
+    "label": "Distant retrograde orbit insertion burn",
+    "epochUtc": "2022-11-25T22:36:11Z",
+    "metSeconds": 835707,
+    "type": "burn",
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 009/15:48:27 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Orion entered distant retrograde orbit around the Moon."
+  },
+  {
+    "id": "dro-departure",
+    "label": "Distant retrograde orbit departure",
+    "epochUtc": "2022-12-01T22:37:40Z",
+    "metSeconds": 1360196,
+    "type": "burn",
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 015/15:49:56 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Departure burn from distant retrograde orbit."
+  },
+  {
+    "id": "return-powered-flyby",
+    "label": "Return powered flyby burn",
+    "epochUtc": "2022-12-05T17:11:44Z",
+    "metSeconds": 1736640,
+    "type": "burn",
+    "verified": true,
+    "sourceNote": "Derived from NASA Artemis I Mission Timeline MET 019/10:24:00 plus official launch epoch 2022-11-16T06:47:44Z.",
+    "description": "Final major lunar flyby burn that committed return trajectory."
+  },
+  {
+    "id": "oem-window-end",
+    "label": "OEM data window end",
+    "epochUtc": "2022-12-11T17:19:52.617Z",
+    "metSeconds": 2255529,
+    "type": "data-boundary",
+    "verified": true,
+    "sourceNote": "Exact epoch from committed normalized official NASA Artemis I OEM dataset (data/normalized/artemis-1.json).",
+    "description": "Last available sample in the committed Artemis I normalized OEM file."
   }
 ]

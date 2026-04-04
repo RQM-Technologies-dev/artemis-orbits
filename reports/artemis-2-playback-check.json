@@ -1,0 +1,47 @@
+{
+  "missionId": "artemis-2",
+  "missionPath": "data/normalized/artemis-2.json",
+  "eventsPath": "data/events/artemis-2.json",
+  "timeWindow": {
+    "startUtc": "2026-04-02T01:57:37.084Z",
+    "stopUtc": "2026-04-10T23:53:17.163Z",
+    "startEpochMs": 1775095057084,
+    "stopEpochMs": 1775865197163,
+    "durationSeconds": 770140.079
+  },
+  "sampleCount": 3235,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 240.0,
+  "eventChecks": [
+    {
+      "id": "oem-window-start",
+      "label": "OEM data window start",
+      "epochUtc": "2026-04-02T01:57:37.084Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1775095057084,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1775095057084,
+        "supportStopEpochMs": 1775095057084,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "oem-window-end",
+      "label": "OEM data window end",
+      "epochUtc": "2026-04-10T23:53:17.163Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1775865197163,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1775865197163,
+        "supportStopEpochMs": 1775865197163,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-04T22:31:55Z"
+}
