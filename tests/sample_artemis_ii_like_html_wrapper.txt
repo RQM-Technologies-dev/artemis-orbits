@@ -1,0 +1,42 @@
+This is a synthetic OEM-like test fixture that intentionally starts with
+HTML-ish junk text BEFORE the real CCSDS OEM block.  The normalizer's
+sanitize_oem_text() function must strip everything before the first
+CCSDS_OEM_VERS line.
+
+<html>
+<head><title>Artemis II Trajectory Data</title></head>
+<body>
+<p>This file was downloaded from the NASA tracking page.</p>
+<p>Contains OEM ephemeris data for Artemis II.</p>
+</body>
+</html>
+
+Some additional junk text that might appear in a wrapped download:
+Lorem ipsum orbit data placeholder...
+=================================
+
+CCSDS_OEM_VERS = 2.0
+CREATION_DATE  = 2026-04-04T00:00:00
+ORIGINATOR     = NASA/JSC
+
+META_START
+OBJECT_NAME          = EM2
+OBJECT_ID            = 24
+CENTER_NAME          = EARTH
+REF_FRAME            = EME2000
+TIME_SYSTEM          = UTC
+START_TIME           = 2026-04-02T03:07:49.583
+USEABLE_START_TIME   = 2026-04-02T03:07:49.583
+USEABLE_STOP_TIME    = 2026-04-04T06:00:00.000
+STOP_TIME            = 2026-04-04T06:00:00.000
+INTERPOLATION        = LAGRANGE
+INTERPOLATION_DEGREE = 8
+META_STOP
+
+COMMENT Sample synthetic data – not real trajectory values
+
+2026-04-02T03:07:49.583  1234567.890  -2345678.901  3456789.012  -1.234  2.345  -3.456
+2026-04-02T03:11:49.583  1234100.000  -2345000.000  3456000.000  -1.200  2.300  -3.400
+2026-04-02T03:15:49.583  1233500.000  -2344200.000  3455100.000  -1.180  2.280  -3.380
+2026-04-02T03:19:49.583  1232800.000  -2343300.000  3454100.000  -1.160  2.260  -3.360
+2026-04-02T03:23:49.583  1232000.000  -2342300.000  3453000.000  -1.140  2.240  -3.340
