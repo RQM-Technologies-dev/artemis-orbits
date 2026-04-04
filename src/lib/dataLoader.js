@@ -201,6 +201,8 @@ export function sortEvents(events) {
         metSeconds: Number.isFinite(event.metSeconds) ? event.metSeconds : null,
         type: event.type || 'milestone',
         description: event.description || '',
+        verified: event.verified === true,
+        sourceNote: event.sourceNote || '',
       };
     })
     .filter(Boolean)

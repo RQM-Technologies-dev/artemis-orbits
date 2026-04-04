@@ -89,3 +89,35 @@ npm test
 # or:
 python3 tests/test_normalize.py
 ```
+
+
+## First real data commit
+
+Run locally (with NASA/JPL network access) to produce the first official-data-backed commit:
+
+```bash
+npm run data:all
+npm run validate:data
+npm run verify:playback
+npm run summarize:data
+npm run data:check
+```
+
+Expected files in `data/normalized/`:
+
+- `artemis-1.json`
+- `artemis-1-moon.json`
+- `artemis-2.json`
+- `artemis-2-moon.json`
+- `manifest.json`
+
+Playback verification writes:
+
+- `reports/artemis-1-playback-check.json`
+- `reports/artemis-2-playback-check.json`
+
+In this repo, “visually matches the official Artemis mission timing” means:
+
+- Playback time is locked to mission UTC/MET from official normalized ephemeris.
+- Timeline scrubbing and speed controls move through real mission time.
+- Event markers are authoritative only when `verified: true` in event JSON.

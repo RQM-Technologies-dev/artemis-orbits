@@ -60,6 +60,7 @@ let missionData = null;
 let moonData = null;
 let events = [];
 let eventMarkers = [];
+let manifestData = null;
 let segmentBounds = [];
 let flatSamples = [];
 let flatMoon = [];
@@ -147,6 +148,7 @@ async function selectMission(id) {
 
   missionData = await loadMissionData(mission.normalizedPath);
   moonData = await loadMissionData(mission.moonPath);
+  manifestData = await loadJson('./data/normalized/manifest.json');
   const loadedEvents = await loadJson(mission.eventsPath);
   events = sortEvents(loadedEvents);
 
@@ -170,6 +172,8 @@ async function selectMission(id) {
   const statusBits = ['Data loaded: mission JSON'];
   statusBits.push(moonData ? 'moon loaded' : 'moon file missing');
   statusBits.push(loadedEvents ? 'events loaded' : 'event file missing');
+  statusBits.push(events.some((event) => event.verified) ? 'verified events present' : 'placeholder events');
+  statusBits.push(manifestData ? 'manifest loaded' : 'manifest missing');
   setStatus(statusBits.join(' | '));
 
   setMissionTrailsBySegment(missionData.segments || []);
@@ -355,6 +359,7 @@ function refreshTimelineEventTicks() {
 function resetLoadedMissionState() {
   missionData = null;
   moonData = null;
+  manifestData = null;
   events = [];
   eventMarkers = [];
   segmentBounds = [];

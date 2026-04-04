@@ -5,6 +5,14 @@
   "type": "module",
   "scripts": {
     "serve": "python3 -m http.server 8000",
-    "test": "python3 tests/test_normalize.py"
+    "test": "python3 tests/test_normalize.py",
+    "data:artemis1": "python3 scripts/normalize_oem.py --mission-id artemis-1 --display-name \"Artemis I\" --status as-flown --official-page-url \"https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/\" --official-zip-url \"https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip\" --output data/normalized/artemis-1.json && python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-1.json --output data/normalized/artemis-1-moon.json",
+    "data:artemis2": "python3 scripts/normalize_oem.py --mission-id artemis-2 --display-name \"Artemis II\" --status as-flown --official-page-url \"https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/\" --official-zip-url \"https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip\" --output data/normalized/artemis-2.json && python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-2.json --output data/normalized/artemis-2-moon.json",
+    "data:manifest": "python3 scripts/generate_manifest.py",
+    "data:all": "npm run data:artemis1 && npm run data:artemis2 && npm run data:manifest",
+    "validate:data": "python3 scripts/validate_normalized_data.py",
+    "verify:playback": "python3 scripts/verify_playback_timing.py",
+    "summarize:data": "python3 scripts/summarize_mission_data.py",
+    "data:check": "python3 scripts/check_first_data_files.py"
   }
 }
