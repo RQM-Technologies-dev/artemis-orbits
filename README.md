@@ -25,6 +25,7 @@ npm run serve
 
 ## Viewer behavior
 
+- Fallback render mode on startup: Earth, Moon, Orion marker, and starfield render immediately even if mission/moon/event JSON files are missing or delayed.
 - Segment-safe rendering: one polyline per OEM segment.
 - Faint **full route** (entire mission) plus bright **traversed route** (up to current mission time), never connected across segment gaps.
 - Playback is tied to `currentMs` mission UTC; wall-clock speed maps as:
