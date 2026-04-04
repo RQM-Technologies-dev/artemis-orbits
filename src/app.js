@@ -17,6 +17,7 @@ import {
   setPerformanceMode,
   setFollowCameraEnabled,
   setEventMarkerClickHandler,
+  zoomCamera,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -149,6 +150,8 @@ function getDomRefs() {
     btnCamMoon: pick('btn-cam-moon'),
     btnCamFit: pick('btn-cam-fit'),
     btnCamFollow: pick('btn-cam-follow'),
+    btnZoomIn: pick('btn-zoom-in'),
+    btnZoomOut: pick('btn-zoom-out'),
     perfModeSelect: pick('perf-select'),
     btnCopyLink: pick('btn-copy-link'),
     annotationList: pick('mission-annotations'),
@@ -256,6 +259,14 @@ function wireUiEvents() {
     const nextPreset = enablingFollow ? 'follow-orion' : state.ui.lastNonFollowCamera;
     applyCameraPreset(nextPreset);
     setSidebarStatus(enablingFollow ? 'Camera preset: Follow Orion' : 'Follow camera disabled');
+  });
+  refs.btnZoomIn.addEventListener('click', () => {
+    zoomCamera(1);
+    setSidebarStatus('Zoomed in');
+  });
+  refs.btnZoomOut.addEventListener('click', () => {
+    zoomCamera(-1);
+    setSidebarStatus('Zoomed out');
   });
 
   refs.speedSelect.addEventListener('change', () => {
@@ -689,6 +700,18 @@ function onKeyboardShortcuts(event) {
   if (event.code.toLowerCase() === 'keyf') {
     event.preventDefault();
     refs.btnCamFollow.click();
+    return;
+  }
+  if (event.key === '+' || event.key === '=') {
+    event.preventDefault();
+    zoomCamera(1);
+    setSidebarStatus('Zoomed in');
+    return;
+  }
+  if (event.key === '-' || event.key === '_') {
+    event.preventDefault();
+    zoomCamera(-1);
+    setSidebarStatus('Zoomed out');
   }
 }
 

@@ -16,6 +16,7 @@ const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
 const FALLBACK_CANVAS_HEIGHT = 540;
 const CAMERA_TRANSITION_MS = 700;
+const ZOOM_FACTOR_PER_STEP = 1.2;
 
 const PLANET_TEXTURE_URLS = {
   earthColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_atmos_2048.jpg',
@@ -30,6 +31,7 @@ let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
 let _starField;
 let _cameraTransition = null;
 let _followCameraEnabled = false;
+let _followCameraDistanceScale = 1;
 let _eventMarkerClickHandler = null;
 let _pointerDown = null;
 const _raycaster = new THREE.Raycaster();
@@ -42,8 +44,10 @@ export function createScene(canvas) {
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
-  _renderer.setClearColor(0x000005);
+  _renderer.setClearColor(0x060d1a);
   _renderer.outputColorSpace = THREE.SRGBColorSpace;
+  _renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  _renderer.toneMappingExposure = 1.22;
 
   _scene = new THREE.Scene();
 
@@ -51,17 +55,17 @@ export function createScene(canvas) {
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _scene.add(new THREE.AmbientLight(0x5f7fb0, 1.45));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  _scene.add(new THREE.AmbientLight(0x88b1ff, 1.95));
+  const sun = new THREE.DirectionalLight(0xffffff, 3.05);
   sun.position.set(50, 30, 80);
   _scene.add(sun);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x5a92e8,
-    emissive: 0x132f58,
-    shininess: 18,
-    specular: 0x2d2d2d,
+    color: 0x8cb9ff,
+    emissive: 0x265089,
+    shininess: 24,
+    specular: 0x5a6272,
   });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
@@ -69,9 +73,9 @@ export function createScene(canvas) {
 
   const atmosphereGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM * 1.05), 48, 32);
   const atmosphereMat = new THREE.MeshLambertMaterial({
-    color: 0x6fb2ff,
+    color: 0x9fd3ff,
     transparent: true,
-    opacity: 0.16,
+    opacity: 0.28,
     side: THREE.BackSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -81,21 +85,21 @@ export function createScene(canvas) {
 
   const moonGeo = new THREE.SphereGeometry(kmToScene(MOON_RADIUS_KM), 32, 24);
   const moonMat = new THREE.MeshPhongMaterial({
-    color: 0xd3d3d3,
-    emissive: 0x242424,
-    shininess: 5,
+    color: 0xf0f2ff,
+    emissive: 0x3f3f3f,
+    shininess: 10,
   });
   _moonMesh = new THREE.Mesh(moonGeo, moonMat);
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
 
   const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
-  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffdd44 }));
+  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffef78 }));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
-  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.25 }));
+  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffefb0, transparent: true, opacity: 0.42 }));
   _orionHalo.visible = true;
   _scene.add(_orionHalo);
 
@@ -112,6 +116,8 @@ export function createScene(canvas) {
   _controls = new OrbitControls(_camera, _renderer.domElement);
   _controls.enableDamping = true;
   _controls.dampingFactor = 0.08;
+  _controls.enableZoom = true;
+  _controls.zoomSpeed = 1.15;
   _controls.minDistance = 0.1;
   _controls.maxDistance = 600;
 
@@ -144,7 +150,7 @@ export function updateBodies(orionKm, moonKm) {
 export function setMissionTrailsBySegment(segments) {
   clearGroup(_fullTrailGroup);
   for (const seg of segments || []) {
-    const line = makeLineFromSamples(seg.samples || [], { color: 0x4a90e2, opacity: 0.25, linewidth: 1 });
+    const line = makeLineFromSamples(seg.samples || [], { color: 0x79bcff, opacity: 0.42, linewidth: 1 });
     if (line) _fullTrailGroup.add(line);
   }
 }
@@ -154,7 +160,7 @@ export function setTraversedTrailBySegment(segments, currentMs) {
   for (const seg of segments || []) {
     const traversed = getTraversedSamples(seg.samples || [], currentMs);
     if (traversed.length < 2) continue;
-    const line = makeLineFromSamples(traversed, { color: 0x8fd3ff, opacity: 0.95, linewidth: 2 });
+    const line = makeLineFromSamples(traversed, { color: 0xbdeaff, opacity: 1, linewidth: 2 });
     if (line) _traversedTrailGroup.add(line);
   }
 }
@@ -166,7 +172,7 @@ export function setEventMarkers(markers) {
 
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(kmToScene(180), 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xff77aa, transparent: true, opacity: 0.9 }),
+      new THREE.MeshBasicMaterial({ color: 0xff9fcb, transparent: true, opacity: 0.98 }),
     );
     sphere.position.set(
       kmToScene(marker.positionKm[0]),
@@ -276,6 +282,34 @@ export function setFollowCameraEnabled(enabled) {
   _cameraTransition = null;
 }
 
+export function zoomCamera(step = 1) {
+  if (!_camera || !_controls) return;
+  const safeStep = Number.isFinite(step) ? step : 1;
+  if (!safeStep) return;
+  const factor = safeStep > 0
+    ? 1 / (ZOOM_FACTOR_PER_STEP ** safeStep)
+    : ZOOM_FACTOR_PER_STEP ** (-safeStep);
+
+  if (_followCameraEnabled) {
+    _followCameraDistanceScale = THREE.MathUtils.clamp(_followCameraDistanceScale * factor, 0.35, 4.5);
+    return;
+  }
+
+  const offset = _camera.position.clone().sub(_controls.target);
+  const currentDistance = offset.length();
+  if (!Number.isFinite(currentDistance) || currentDistance <= 0) return;
+
+  const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
+  const maxDistance = Number.isFinite(_controls.maxDistance) ? _controls.maxDistance : 600;
+  const nextDistance = THREE.MathUtils.clamp(currentDistance * factor, minDistance, maxDistance);
+  if (Math.abs(nextDistance - currentDistance) < 1e-6) return;
+
+  offset.setLength(nextDistance);
+  _camera.position.copy(_controls.target.clone().add(offset));
+  _cameraTransition = null;
+  _controls.update();
+}
+
 export function setEventMarkerClickHandler(handler) {
   _eventMarkerClickHandler = typeof handler === 'function' ? handler : null;
 }
@@ -333,7 +367,16 @@ function _makeStarField(count) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, sizeAttenuation: true }));
+  return new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({
+      color: 0xe7f3ff,
+      size: 0.52,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9,
+    }),
+  );
 }
 
 function getSafeCanvasSize(canvas) {
@@ -403,7 +446,7 @@ function _tickCameraTransition() {
 function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
   const target = _orionMarker.position.clone();
-  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35));
+  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35).multiplyScalar(_followCameraDistanceScale));
   _camera.position.lerp(desired, 0.075);
   _controls.target.lerp(target, 0.12);
 }

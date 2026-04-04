@@ -36,10 +36,10 @@ npm run serve
   - `6 hr/sec` = 21600 mission seconds / wall second
   - `12 hr/sec` = 43200 mission seconds / wall second
   - `1 day/sec` = 86400 mission seconds / wall second
-- Controls: play/pause, reset, jump start/end, previous/next event, ±1h, ±1d, timeline scrub.
+- Controls: play/pause, reset, jump start/end, previous/next event, ±1h, ±1d, timeline scrub, and zoom in/out (buttons, +/- keys, wheel/pinch).
 - Timeline event ticks + sidebar nearest/active event label.
 - Optional 3D event waypoint markers (interpolated from Orion state at event epoch).
-- Camera presets: Earth-centered, Moon-approach, mission-fit.
+- Camera presets: Earth-centered, Moon-approach, mission-fit, plus follow-Orion mode.
 
 ## Event JSON schema
 

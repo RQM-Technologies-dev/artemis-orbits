@@ -75,10 +75,10 @@ html, body {
 
 .legend-row { display: flex; align-items: center; gap: 8px; font-size: .78rem; margin: 4px 0; color: var(--text-dim); }
 .legend-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.legend-swatch.full-route { background: rgba(74, 144, 226, .45); }
-.legend-swatch.traversed-route { background: #8fd3ff; }
-.legend-swatch.orion-now { background: #ffdd44; }
-.legend-swatch.event-marker { background: #ff77aa; }
+.legend-swatch.full-route { background: rgba(121, 188, 255, .62); }
+.legend-swatch.traversed-route { background: #bdeaff; }
+.legend-swatch.orion-now { background: #ffef78; }
+.legend-swatch.event-marker { background: #ff9fcb; }
 .hint-text { color: var(--text-dim); font-size: .72rem; margin-top: 5px; }
 
 .controls-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
