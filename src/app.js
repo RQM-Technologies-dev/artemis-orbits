@@ -8,6 +8,7 @@ import {
   updateBodies,
   setMissionTrailsBySegment,
   setTraversedTrailBySegment,
+  setMoonTrajectoryBySegment,
   setEventMarkers,
   focusCameraPreset,
   resizeScene,
@@ -439,6 +440,7 @@ async function selectMission(id) {
   state.events = prepareMissionEvents(state.events, state.missionStartMs, state.missionStopMs);
 
   setMissionTrailsBySegment(state.missionData.segments || []);
+  setMoonTrajectoryBySegment(state.moonData?.segments || []);
   try {
     buildEventMarkers();
   } catch (error) {

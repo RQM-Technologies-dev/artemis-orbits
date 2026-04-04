@@ -40,7 +40,7 @@ const PLANET_TEXTURE_URLS = {
 
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
-let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
+let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup, _moonTrajectoryGroup;
 let _starField;
 let _composer = null;
 let _bloomPass = null;
@@ -124,9 +124,11 @@ export function createScene(canvas) {
   _fullTrailGroup = new THREE.Group();
   _traversedTrailGroup = new THREE.Group();
   _eventMarkerGroup = new THREE.Group();
+  _moonTrajectoryGroup = new THREE.Group();
   _scene.add(_fullTrailGroup);
   _scene.add(_traversedTrailGroup);
   _scene.add(_eventMarkerGroup);
+  _scene.add(_moonTrajectoryGroup);
 
   _starField = _makeStarField(3000);
   _scene.add(_starField);
@@ -190,6 +192,14 @@ export function setTraversedTrailBySegment(segments, currentMs) {
   }
 }
 
+export function setMoonTrajectoryBySegment(segments) {
+  clearGroup(_moonTrajectoryGroup);
+  for (const seg of segments || []) {
+    const line = makeLineFromSamples(seg.samples || [], { color: 0xd7dbff, opacity: 0.56, linewidth: 1 });
+    if (line) _moonTrajectoryGroup.add(line);
+  }
+}
+
 export function setEventMarkers(markers) {
   clearGroup(_eventMarkerGroup);
   for (const marker of markers || []) {
@@ -214,6 +224,7 @@ export function resetSceneDynamicState() {
   clearGroup(_fullTrailGroup);
   clearGroup(_traversedTrailGroup);
   clearGroup(_eventMarkerGroup);
+  clearGroup(_moonTrajectoryGroup);
 }
 
 export function showFallbackBodies() {
