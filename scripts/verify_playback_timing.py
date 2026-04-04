@@ -94,8 +94,8 @@ def run_check(mission_path: Path, events_path: Path | None, reports_dir: Path) -
                     'interpolationSupport': window,
                 }
             )
-            if not in_range:
-                warnings.append(f'Event {ev_id} is outside mission time window')
+            if not in_range and bool(ev.get('verified', False)):
+                warnings.append(f'Verified event {ev_id} is outside mission time window')
     else:
         warnings.append('Event file missing; mission-to-event timing check skipped.')
 
@@ -152,6 +152,11 @@ def main() -> int:
     parser.add_argument('--events', help='Optional path to events JSON for --mission')
     parser.add_argument('--reports-dir', default='reports')
     parser.add_argument('--normalized-dir', default='data/normalized')
+    parser.add_argument(
+        '--fail-on-issues',
+        action='store_true',
+        help='Return non-zero if any warnings are detected.',
+    )
     args = parser.parse_args()
 
     reports_dir = Path(args.reports_dir)
@@ -164,6 +169,8 @@ def main() -> int:
             return 1
         report, out_path = run_check(mission_path, events_path, reports_dir)
         print_report(report, out_path)
+        if args.fail_on_issues and report.get('warnings'):
+            return 1
         return 0
 
     jobs = default_jobs(Path(args.normalized_dir))
@@ -175,6 +182,8 @@ def main() -> int:
             continue
         report, out_path = run_check(mission_path, events_path, reports_dir)
         print_report(report, out_path)
+        if args.fail_on_issues and report.get('warnings'):
+            rc = 1
     return rc
 
 

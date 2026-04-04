@@ -27,7 +27,13 @@ const PLANET_TEXTURE_URLS = {
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
+let _starField;
 let _cameraTransition = null;
+let _followCameraEnabled = false;
+let _eventMarkerClickHandler = null;
+let _pointerDown = null;
+const _raycaster = new THREE.Raycaster();
+const _pointer = new THREE.Vector2();
 
 export function createScene(canvas) {
   if (!canvas) throw new Error('createScene(canvas) requires a valid canvas element');
@@ -100,7 +106,8 @@ export function createScene(canvas) {
   _scene.add(_traversedTrailGroup);
   _scene.add(_eventMarkerGroup);
 
-  _scene.add(_makeStarField(3000));
+  _starField = _makeStarField(3000);
+  _scene.add(_starField);
 
   _controls = new OrbitControls(_camera, _renderer.domElement);
   _controls.enableDamping = true;
@@ -108,7 +115,11 @@ export function createScene(canvas) {
   _controls.minDistance = 0.1;
   _controls.maxDistance = 600;
 
+  _renderer.domElement.addEventListener('pointerdown', _onPointerDown);
+  _renderer.domElement.addEventListener('pointerup', _onPointerUp);
+
   _loadPlanetTextures(earthMat, moonMat);
+  setPerformanceMode('auto');
   showFallbackBodies();
   focusCameraPreset('fallback-overview', { instant: true });
 }
@@ -183,6 +194,7 @@ export function showFallbackBodies() {
 
 export function focusCameraPreset(name, context = {}) {
   if (!_camera || !_controls) return;
+  _followCameraEnabled = false;
   let cameraPos = _camera.position.clone();
   let targetPos = _controls.target.clone();
 
@@ -235,8 +247,37 @@ export function resizeScene(width, height) {
 export function renderScene() {
   if (!_renderer) return;
   _tickCameraTransition();
+  _tickFollowCamera();
   _controls.update();
   _renderer.render(_scene, _camera);
+}
+
+export function setPerformanceMode(mode) {
+  if (!_renderer) return;
+  const normalized = ['auto', 'high', 'balanced', 'low'].includes(mode) ? mode : 'auto';
+  let effective = normalized;
+  const nav = typeof navigator !== 'undefined' ? navigator : {};
+  if (normalized === 'auto') {
+    const cores = Number.isFinite(nav.hardwareConcurrency) ? nav.hardwareConcurrency : 8;
+    const deviceMemory = Number.isFinite(nav.deviceMemory) ? nav.deviceMemory : 8;
+    effective = (cores <= 4 || deviceMemory <= 4) ? 'low' : 'balanced';
+  }
+  const dpr = window.devicePixelRatio || 1;
+  if (effective === 'high') _renderer.setPixelRatio(Math.min(dpr, 2));
+  else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
+  else _renderer.setPixelRatio(1);
+  if (_starField) _starField.visible = effective !== 'low';
+  _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
+}
+
+export function setFollowCameraEnabled(enabled) {
+  _followCameraEnabled = Boolean(enabled);
+  if (!_followCameraEnabled) return;
+  _cameraTransition = null;
+}
+
+export function setEventMarkerClickHandler(handler) {
+  _eventMarkerClickHandler = typeof handler === 'function' ? handler : null;
 }
 
 function makeLineFromSamples(samples, { color, opacity }) {
@@ -357,4 +398,37 @@ function _tickCameraTransition() {
   _camera.position.lerpVectors(_cameraTransition.fromPos, _cameraTransition.toPos, eased);
   _controls.target.lerpVectors(_cameraTransition.fromTarget, _cameraTransition.toTarget, eased);
   if (t >= 1) _cameraTransition = null;
+}
+
+function _tickFollowCamera() {
+  if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
+  const target = _orionMarker.position.clone();
+  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35));
+  _camera.position.lerp(desired, 0.075);
+  _controls.target.lerp(target, 0.12);
+}
+
+function _onPointerDown(event) {
+  _pointerDown = { x: event.clientX, y: event.clientY, t: performance.now() };
+}
+
+function _onPointerUp(event) {
+  if (!_eventMarkerClickHandler || !_camera || !_renderer) return;
+  if (!_pointerDown) return;
+  const dx = event.clientX - _pointerDown.x;
+  const dy = event.clientY - _pointerDown.y;
+  const dt = performance.now() - _pointerDown.t;
+  _pointerDown = null;
+  if (Math.hypot(dx, dy) > 5 || dt > 450) return;
+
+  const rect = _renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  _pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  _pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+  _raycaster.setFromCamera(_pointer, _camera);
+  const hits = _raycaster.intersectObjects(_eventMarkerGroup.children, false);
+  const hit = hits[0];
+  const eventId = hit?.object?.userData?.eventId;
+  if (!eventId) return;
+  _eventMarkerClickHandler({ eventId });
 }
