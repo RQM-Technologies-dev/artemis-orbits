@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Check required first-data-commit artifacts and report exactly what's missing."""
+
+from pathlib import Path
+
+REQUIRED = [
+    Path('data/normalized/artemis-1.json'),
+    Path('data/normalized/artemis-1-moon.json'),
+    Path('data/normalized/artemis-2.json'),
+    Path('data/normalized/artemis-2-moon.json'),
+    Path('data/normalized/manifest.json'),
+]
+
+
+def main() -> int:
+    missing = [p for p in REQUIRED if not p.exists()]
+    present = [p for p in REQUIRED if p.exists()]
+
+    print('First-data artifact check')
+    for p in present:
+        print(f'  PRESENT: {p}')
+    for p in missing:
+        print(f'  MISSING: {p}')
+
+    if missing:
+        print(f'\nMissing {len(missing)} required file(s). Run npm run data:all when network access is available.')
+        return 1
+
+    print('\nAll required normalized artifacts are present.')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
