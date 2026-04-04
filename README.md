@@ -20,7 +20,7 @@ python3 scripts/normalize_oem.py --mission-id artemis-1 --display-name "Artemis 
 python3 scripts/normalize_oem.py --mission-id artemis-2 --display-name "Artemis II" --status as-flown --official-page-url "https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/" --official-zip-url "https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip" --output data/normalized/artemis-2.json
 python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-1.json --output data/normalized/artemis-1-moon.json
 python3 scripts/fetch_moon_vectors.py --input data/normalized/artemis-2.json --output data/normalized/artemis-2-moon.json
-python3 -m http.server 8000
+npm run serve
 ```
 
 ## Viewer behavior
@@ -65,12 +65,12 @@ These are placeholders with TODO labeling and **must be replaced with verified o
 
 ## Vercel deployment
 
-This app is static and deployment-safe for both root and subpath hosting.
+This app is static and works at `/` as-is. For a Vercel subpath like `/NASA/Artemis/`, keep the prefix-stripping rewrites in `vercel.json`. They let HTML, module, stylesheet, and JSON requests under that prefix resolve back to the repo root.
 
 1. Ensure generated normalized JSON exists in `data/normalized/`.
 2. Deploy repo to Vercel as a static project (no build command required).
-3. `vercel.json` includes clean URL handling and rewrites so both `/NASA/Artemis` and `/NASA/Artemis/` resolve cleanly.
-4. Frontend URLs are relative/module-resolved so deployment works from `/` and nested paths.
+3. `vercel.json` must rewrite `/NASA/Artemis`, `/NASA/Artemis/`, and `/NASA/Artemis/:path*` so the prefixed entry URL and its static asset/data requests resolve cleanly.
+4. Frontend URLs stay relative/module-resolved, so root hosting works directly and prefixed hosting works when the host strips that prefix on every request.
 5. `.vercelignore` excludes local-only artifacts (`data/raw/`, caches, large ZIP/OEM scratch files).
 
 ## Data notes
@@ -85,5 +85,7 @@ This app is static and deployment-safe for both root and subpath hosting.
 Python normalization tests:
 
 ```bash
-python3 -m pytest tests/test_normalize.py
+npm test
+# or:
+python3 tests/test_normalize.py
 ```

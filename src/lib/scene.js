@@ -11,6 +11,7 @@ const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
 const ORION_MARKER_KM = 260;
 const ORION_HALO_KM = 430;
+const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo;
@@ -47,10 +48,12 @@ export function createScene(canvas) {
 
   const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
   _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffdd44 }));
+  _orionMarker.visible = false;
   _scene.add(_orionMarker);
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
   _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.25 }));
+  _orionHalo.visible = false;
   _scene.add(_orionHalo);
 
   _fullTrailGroup = new THREE.Group();
@@ -76,11 +79,15 @@ export function updateBodies(orionKm, moonKm) {
     const sz = kmToScene(orionKm[2]);
     _orionMarker.position.set(sx, sy, sz);
     _orionHalo.position.set(sx, sy, sz);
+    _orionMarker.visible = true;
+    _orionHalo.visible = true;
+  } else {
+    _orionMarker.visible = false;
+    _orionHalo.visible = false;
   }
 
-  if (moonKm) {
-    _moonMesh.position.set(kmToScene(moonKm[0]), kmToScene(moonKm[1]), kmToScene(moonKm[2]));
-  }
+  const moonPosKm = moonKm || DEFAULT_MOON_POSITION_KM;
+  _moonMesh.position.set(kmToScene(moonPosKm[0]), kmToScene(moonPosKm[1]), kmToScene(moonPosKm[2]));
 }
 
 export function setMissionTrailsBySegment(segments) {
@@ -118,6 +125,13 @@ export function setEventMarkers(markers) {
     sphere.userData = { eventId: marker.id, label: marker.label };
     _eventMarkerGroup.add(sphere);
   }
+}
+
+export function resetSceneDynamicState() {
+  updateBodies(null, null);
+  clearGroup(_fullTrailGroup);
+  clearGroup(_traversedTrailGroup);
+  clearGroup(_eventMarkerGroup);
 }
 
 export function focusCameraPreset(name, context = {}) {
