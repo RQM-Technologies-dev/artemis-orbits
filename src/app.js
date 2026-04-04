@@ -140,12 +140,13 @@ function getDomRefs() {
     if (!node) throw new Error(`Missing required DOM node: #${id}`);
     return node;
   };
+  const pickOptional = (id) => document.getElementById(id);
 
   return {
     tabBar: pick('mission-tabs'),
     canvas: pick('three-canvas'),
     overlayMsg: pick('scene-overlay-msg'),
-    debugOverlay: pick('scene-debug-overlay'),
+    debugOverlay: pickOptional('scene-debug-overlay'),
     sbTitle: pick('sb-mission-title'),
     sbSummary: pick('sb-mission-summary'),
     sbStatus: pick('sb-status-msg'),
