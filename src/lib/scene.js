@@ -42,6 +42,10 @@ let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup, _moonTrajectoryGroup;
 let _starField;
+let _orionBodyMaterial = null;
+let _orionNoseMaterial = null;
+let _orionShieldMaterial = null;
+let _orionAccentMaterial = null;
 let _composer = null;
 let _bloomPass = null;
 let _cameraTransition = null;
@@ -111,8 +115,7 @@ export function createScene(canvas) {
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
 
-  const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
-  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffef78 }));
+  _orionMarker = _makeOrionCapsule(kmToScene(ORION_MARKER_KM));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
 
@@ -419,7 +422,7 @@ export function setVisualPreset(preset) {
     _moonMesh.material.emissive.setHex(settings.moonEmissive);
     _moonMesh.material.shininess = settings.moonShininess;
   }
-  if (_orionMarker?.material) _orionMarker.material.color.setHex(settings.orionColor);
+  _applyOrionCapsuleVisual(settings.orionColor);
   if (_orionHalo?.material) {
     _orionHalo.material.color.setHex(settings.orionHaloColor);
     _orionHalo.material.opacity = settings.orionHaloOpacity;
@@ -507,6 +510,87 @@ function _makeStarField(count) {
       opacity: 0.9,
     }),
   );
+}
+
+function _makeOrionCapsule(radius) {
+  const capsule = new THREE.Group();
+  const radialSegments = 18;
+  const bodyRadiusTop = radius * 0.62;
+  const bodyRadiusBottom = radius * 0.82;
+  const bodyHeight = radius * 1.04;
+  const noseHeight = radius * 0.84;
+  const shieldHeight = radius * 0.2;
+
+  _orionBodyMaterial = new THREE.MeshPhongMaterial({
+    color: 0xd2d9e4,
+    emissive: 0x202735,
+    shininess: 40,
+    specular: 0x8a93a5,
+  });
+  _orionNoseMaterial = new THREE.MeshPhongMaterial({
+    color: 0xe8edf4,
+    emissive: 0x1d2330,
+    shininess: 48,
+    specular: 0xa8b4c5,
+  });
+  _orionShieldMaterial = new THREE.MeshPhongMaterial({
+    color: 0x5a4333,
+    emissive: 0x1e1510,
+    shininess: 10,
+    specular: 0x2f2a24,
+  });
+  _orionAccentMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffef78,
+    transparent: true,
+    opacity: 0.82,
+  });
+
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(bodyRadiusTop, bodyRadiusBottom, bodyHeight, radialSegments, 1, false),
+    _orionBodyMaterial,
+  );
+  capsule.add(body);
+
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(bodyRadiusTop, noseHeight, radialSegments),
+    _orionNoseMaterial,
+  );
+  nose.position.y = (bodyHeight * 0.5) + (noseHeight * 0.5) - (radius * 0.06);
+  capsule.add(nose);
+
+  const heatShield = new THREE.Mesh(
+    new THREE.CylinderGeometry(bodyRadiusBottom * 1.07, bodyRadiusBottom * 1.12, shieldHeight, radialSegments),
+    _orionShieldMaterial,
+  );
+  heatShield.position.y = -((bodyHeight * 0.5) + (shieldHeight * 0.5) - (radius * 0.07));
+  capsule.add(heatShield);
+
+  const accentRing = new THREE.Mesh(
+    new THREE.TorusGeometry(bodyRadiusTop * 0.95, radius * 0.06, 10, 20),
+    _orionAccentMaterial,
+  );
+  accentRing.rotation.x = Math.PI / 2;
+  accentRing.position.y = bodyHeight * 0.1;
+  capsule.add(accentRing);
+
+  // Tilt slightly so the capsule silhouette reads in most camera angles.
+  capsule.rotation.z = Math.PI * 0.08;
+  return capsule;
+}
+
+function _applyOrionCapsuleVisual(orionColorHex) {
+  const accent = new THREE.Color(orionColorHex);
+  const bodyBase = new THREE.Color(0xd2d9e4);
+  const noseBase = new THREE.Color(0xe8edf4);
+  if (_orionBodyMaterial) {
+    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.22);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.08);
+  }
+  if (_orionNoseMaterial) {
+    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.12);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.05);
+  }
+  if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
 }
 
 function getSafeCanvasSize(canvas) {
