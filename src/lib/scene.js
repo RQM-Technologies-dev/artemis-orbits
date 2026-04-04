@@ -62,7 +62,7 @@ export function createScene(canvas) {
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
-  _renderer.setClearColor(0x060d1a);
+  _renderer.setClearColor(0x01040b);
   _renderer.outputColorSpace = THREE.SRGBColorSpace;
   _renderer.toneMapping = THREE.ACESFilmicToneMapping;
   _renderer.toneMappingExposure = DEFAULT_TONE_EXPOSURE;
