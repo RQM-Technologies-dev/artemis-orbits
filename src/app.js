@@ -30,6 +30,7 @@ import { formatUtc, formatMet, clamp } from './lib/time.js';
 
 const MS_PER_H = 3_600_000;
 const MS_PER_D = 86_400_000;
+const EVENT_NAV_EPS_MS = 1;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -168,17 +169,28 @@ function buildTabs() {
 
 function wireUiEvents() {
   refs.btnPlay.addEventListener('click', () => {
-    if (!state.flatSamples.length) return;
+    if (!hasMissionTimeline()) {
+      setSidebarStatus('Playback unavailable — mission data not loaded');
+      return;
+    }
     state.playing = !state.playing;
     refs.btnPlay.textContent = state.playing ? '⏸ Pause' : '▶ Play';
     if (state.playing && state.currentMs >= state.missionStopMs) state.currentMs = state.missionStartMs;
+    setSidebarStatus(state.playing ? 'Playback running' : 'Playback paused');
   });
 
   refs.btnReset.addEventListener('click', () => {
+    if (!hasMissionTimeline()) {
+      showFallbackBodies();
+      focusCameraPreset('fallback-overview');
+      setSidebarStatus('Reset fallback scene');
+      return;
+    }
     state.currentMs = state.missionStartMs;
     state.playing = false;
     refs.btnPlay.textContent = '▶ Play';
     updateScene();
+    setSidebarStatus('Reset to mission start');
   });
 
   refs.btnJumpStart.addEventListener('click', () => jumpToMissionStart());
@@ -190,12 +202,24 @@ function wireUiEvents() {
   refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
   refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
 
-  refs.btnCamEarth.addEventListener('click', () => focusCameraPreset('earth-centered'));
+  refs.btnCamEarth.addEventListener('click', () => {
+    focusCameraPreset('earth-centered');
+    setSidebarStatus('Camera preset: Earth-centered');
+  });
   refs.btnCamMoon.addEventListener('click', () => {
     const moonState = getInterpolatedState(state.moonData, state.currentMs);
     focusCameraPreset('moon-approach', { moonKm: moonState?.positionKm || null });
+    setSidebarStatus('Camera preset: Moon-approach');
   });
-  refs.btnCamFit.addEventListener('click', () => focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm }));
+  refs.btnCamFit.addEventListener('click', () => {
+    focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm });
+    setSidebarStatus('Camera preset: Mission-fit');
+  });
+
+  refs.speedSelect.addEventListener('change', () => {
+    const selected = refs.speedSelect.options[refs.speedSelect.selectedIndex];
+    if (selected) setSidebarStatus(`Playback speed: ${selected.textContent}`);
+  });
 
   refs.timelineSlider.addEventListener('mousedown', () => { state.scrubbing = true; });
   refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
@@ -282,6 +306,7 @@ async function selectMission(id) {
   state.currentMs = state.missionStartMs;
 
   refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
+  state.events = prepareMissionEvents(state.events, state.missionStartMs, state.missionStopMs);
 
   setMissionTrailsBySegment(state.missionData.segments || []);
   try {
@@ -434,35 +459,117 @@ function resetLoadedMissionState() {
 }
 
 function jumpToMissionStart() {
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Mission timeline unavailable');
+    return;
+  }
   state.currentMs = state.missionStartMs;
   updateScene();
+  setSidebarStatus('Jumped to mission start');
 }
 
 function jumpToMissionEnd() {
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Mission timeline unavailable');
+    return;
+  }
   state.currentMs = state.missionStopMs;
   updateScene();
+  setSidebarStatus('Jumped to mission end');
 }
 
 function jumpToPreviousEvent() {
-  const ctx = getEventContext(state.events, state.currentMs);
-  if (ctx.previous) {
-    state.currentMs = ctx.previous.epochMs;
-    updateScene();
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Mission timeline unavailable');
+    return;
   }
+  const previous = findPreviousEvent(state.events, state.currentMs);
+  if (previous) {
+    state.currentMs = clamp(previous.epochMs, state.missionStartMs, state.missionStopMs);
+    updateScene();
+    setSidebarStatus(`Jumped to event: ${previous.label}`);
+    return;
+  }
+  state.currentMs = state.missionStartMs;
+  updateScene();
+  setSidebarStatus('No previous event — at mission start');
 }
 
 function jumpToNextEvent() {
-  const ctx = getEventContext(state.events, state.currentMs);
-  if (ctx.next) {
-    state.currentMs = ctx.next.epochMs;
-    updateScene();
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Mission timeline unavailable');
+    return;
   }
+  const next = findNextEvent(state.events, state.currentMs);
+  if (next) {
+    state.currentMs = clamp(next.epochMs, state.missionStartMs, state.missionStopMs);
+    updateScene();
+    setSidebarStatus(`Jumped to event: ${next.label}`);
+    return;
+  }
+  state.currentMs = state.missionStopMs;
+  updateScene();
+  setSidebarStatus('No next event — at mission end');
 }
 
 function stepTime(deltaMs) {
-  if (!state.flatSamples.length) return;
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Mission timeline unavailable');
+    return;
+  }
   state.currentMs = clamp(state.currentMs + deltaMs, state.missionStartMs, state.missionStopMs);
   updateScene();
+}
+
+function hasMissionTimeline() {
+  return state.flatSamples.length > 0 && state.missionStopMs > state.missionStartMs;
+}
+
+function prepareMissionEvents(events, missionStartMs, missionStopMs) {
+  const inRange = (events || []).filter((event) => event.epochMs >= missionStartMs && event.epochMs <= missionStopMs);
+  const withBoundaries = [...inRange];
+  if (!withBoundaries.some((event) => event.id === 'mission-start')) {
+    withBoundaries.push({
+      id: 'mission-start',
+      label: 'Mission start',
+      epochUtc: formatUtc(missionStartMs),
+      epochMs: missionStartMs,
+      metSeconds: 0,
+      type: 'system-boundary',
+      description: 'Derived from normalized mission window start.',
+      verified: true,
+      sourceNote: 'Derived from normalized mission data.',
+    });
+  }
+  if (!withBoundaries.some((event) => event.id === 'mission-end')) {
+    withBoundaries.push({
+      id: 'mission-end',
+      label: 'Mission end',
+      epochUtc: formatUtc(missionStopMs),
+      epochMs: missionStopMs,
+      metSeconds: Math.max(0, Math.round((missionStopMs - missionStartMs) / 1000)),
+      type: 'system-boundary',
+      description: 'Derived from normalized mission window end.',
+      verified: true,
+      sourceNote: 'Derived from normalized mission data.',
+    });
+  }
+  withBoundaries.sort((a, b) => a.epochMs - b.epochMs || a.id.localeCompare(b.id));
+  return withBoundaries;
+}
+
+function findPreviousEvent(events, currentMs) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].epochMs < currentMs - EVENT_NAV_EPS_MS) return events[i];
+  }
+  return null;
+}
+
+function findNextEvent(events, currentMs) {
+  for (let i = 0; i < events.length; i++) {
+    if (events[i].epochMs > currentMs + EVENT_NAV_EPS_MS) return events[i];
+  }
+  return null;
 }
 
 function onResize() {
