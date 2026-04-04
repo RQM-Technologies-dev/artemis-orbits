@@ -13,6 +13,7 @@ import {
   resizeScene,
   renderScene,
   resetSceneDynamicState,
+  showFallbackBodies,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -20,55 +21,12 @@ import {
   flattenSamples,
   findSegment,
   findSampleIndex,
-  getSortedSegmentBounds,
   getMissionTimeBounds,
   sortEvents,
   getEventContext,
 } from './lib/dataLoader.js';
 import { interpolateSegment } from './lib/interpolate.js';
 import { formatUtc, formatMet, clamp } from './lib/time.js';
-
-const tabBar = document.getElementById('mission-tabs');
-const canvas = document.getElementById('three-canvas');
-const overlayMsg = document.getElementById('scene-overlay-msg');
-const sbTitle = document.getElementById('sb-mission-title');
-const sbSummary = document.getElementById('sb-mission-summary');
-const sbStatus = document.getElementById('sb-status-msg');
-const sbUtc = document.getElementById('sb-utc');
-const sbMet = document.getElementById('sb-met');
-const sbFrame = document.getElementById('sb-frame');
-const sbSampleCount = document.getElementById('sb-sample-count');
-const sbEvent = document.getElementById('sb-current-event');
-const btnPlay = document.getElementById('btn-play');
-const btnReset = document.getElementById('btn-reset');
-const btnJumpStart = document.getElementById('btn-jump-start');
-const btnJumpEnd = document.getElementById('btn-jump-end');
-const btnPrevEvent = document.getElementById('btn-prev-event');
-const btnNextEvent = document.getElementById('btn-next-event');
-const btnMinus1h = document.getElementById('btn-minus-1h');
-const btnPlus1h = document.getElementById('btn-plus-1h');
-const btnMinus1d = document.getElementById('btn-minus-1d');
-const btnPlus1d = document.getElementById('btn-plus-1d');
-const speedSelect = document.getElementById('speed-select');
-const timelineSlider = document.getElementById('timeline-slider');
-const timelineTicks = document.getElementById('timeline-ticks');
-const btnCamEarth = document.getElementById('btn-cam-earth');
-const btnCamMoon = document.getElementById('btn-cam-moon');
-const btnCamFit = document.getElementById('btn-cam-fit');
-
-let missionData = null;
-let moonData = null;
-let events = [];
-let eventMarkers = [];
-let manifestData = null;
-let segmentBounds = [];
-let flatSamples = [];
-let flatMoon = [];
-let missionStartMs = 0;
-let missionStopMs = 0;
-let currentMs = 0;
-let playing = false;
-let scrubbing = false;
 
 const MS_PER_H = 3_600_000;
 const MS_PER_D = 86_400_000;
@@ -83,26 +41,109 @@ const SPEED_OPTIONS = [
   { label: '1 day/sec', missionMsPerWallSecond: 86_400_000 },
 ];
 
-createScene(canvas);
-buildSpeedOptions();
-buildTabs();
-selectMission(ACTIVE_MISSION_ID);
-startRafLoop();
-window.addEventListener('resize', onResize);
-onResize();
+const state = {
+  missionData: null,
+  moonData: null,
+  events: [],
+  eventMarkers: [],
+  missionStartMs: 0,
+  missionStopMs: 0,
+  currentMs: 0,
+  flatSamples: [],
+  playing: false,
+  scrubbing: false,
+  diagnostics: {
+    sceneInitialized: false,
+    rendererInitialized: false,
+    missionJsonLoaded: false,
+    moonJsonLoaded: false,
+    eventsLoaded: false,
+    lastError: '',
+  },
+};
+
+let refs = null;
+
+bootstrapApp();
+
+function bootstrapApp() {
+  try {
+    refs = getDomRefs();
+    createScene(refs.canvas);
+    state.diagnostics.sceneInitialized = true;
+    state.diagnostics.rendererInitialized = true;
+    updateDebugOverlay();
+
+    showFallbackBodies();
+    focusCameraPreset('fallback-overview');
+
+    buildSpeedOptions();
+    buildTabs();
+    wireUiEvents();
+
+    selectMission(ACTIVE_MISSION_ID)
+      .catch((error) => handleStartupError('Mission loading failed', error));
+
+    startRafLoop();
+    window.addEventListener('resize', onResize);
+    onResize();
+  } catch (error) {
+    handleStartupError('Bootstrap failed', error);
+  }
+}
+
+function getDomRefs() {
+  const pick = (id) => {
+    const node = document.getElementById(id);
+    if (!node) throw new Error(`Missing required DOM node: #${id}`);
+    return node;
+  };
+
+  return {
+    tabBar: pick('mission-tabs'),
+    canvas: pick('three-canvas'),
+    overlayMsg: pick('scene-overlay-msg'),
+    debugOverlay: pick('scene-debug-overlay'),
+    sbTitle: pick('sb-mission-title'),
+    sbSummary: pick('sb-mission-summary'),
+    sbStatus: pick('sb-status-msg'),
+    sbUtc: pick('sb-utc'),
+    sbMet: pick('sb-met'),
+    sbFrame: pick('sb-frame'),
+    sbSampleCount: pick('sb-sample-count'),
+    sbEvent: pick('sb-current-event'),
+    btnPlay: pick('btn-play'),
+    btnReset: pick('btn-reset'),
+    btnJumpStart: pick('btn-jump-start'),
+    btnJumpEnd: pick('btn-jump-end'),
+    btnPrevEvent: pick('btn-prev-event'),
+    btnNextEvent: pick('btn-next-event'),
+    btnMinus1h: pick('btn-minus-1h'),
+    btnPlus1h: pick('btn-plus-1h'),
+    btnMinus1d: pick('btn-minus-1d'),
+    btnPlus1d: pick('btn-plus-1d'),
+    speedSelect: pick('speed-select'),
+    timelineSlider: pick('timeline-slider'),
+    timelineTicks: pick('timeline-ticks'),
+    btnCamEarth: pick('btn-cam-earth'),
+    btnCamMoon: pick('btn-cam-moon'),
+    btnCamFit: pick('btn-cam-fit'),
+  };
+}
 
 function buildSpeedOptions() {
-  speedSelect.innerHTML = '';
+  refs.speedSelect.innerHTML = '';
   for (const opt of SPEED_OPTIONS) {
     const option = document.createElement('option');
     option.value = String(opt.missionMsPerWallSecond);
     option.textContent = opt.label;
     if (opt.label === '1 hr/sec') option.selected = true;
-    speedSelect.appendChild(option);
+    refs.speedSelect.appendChild(option);
   }
 }
 
 function buildTabs() {
+  refs.tabBar.innerHTML = '';
   for (const m of MISSIONS) {
     const btn = document.createElement('button');
     btn.textContent = m.displayName;
@@ -113,14 +154,58 @@ function buildTabs() {
     if (!m.enabled) btn.setAttribute('aria-disabled', 'true');
     btn.addEventListener('click', () => {
       if (!m.enabled) return;
-      selectMission(m.id);
+      selectMission(m.id).catch((error) => handleStartupError('Mission switch failed', error));
     });
-    tabBar.appendChild(btn);
+    refs.tabBar.appendChild(btn);
   }
 }
 
+function wireUiEvents() {
+  refs.btnPlay.addEventListener('click', () => {
+    if (!state.flatSamples.length) return;
+    state.playing = !state.playing;
+    refs.btnPlay.textContent = state.playing ? '⏸ Pause' : '▶ Play';
+    if (state.playing && state.currentMs >= state.missionStopMs) state.currentMs = state.missionStartMs;
+  });
+
+  refs.btnReset.addEventListener('click', () => {
+    state.currentMs = state.missionStartMs;
+    state.playing = false;
+    refs.btnPlay.textContent = '▶ Play';
+    updateScene();
+  });
+
+  refs.btnJumpStart.addEventListener('click', () => jumpToMissionStart());
+  refs.btnJumpEnd.addEventListener('click', () => jumpToMissionEnd());
+  refs.btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
+  refs.btnNextEvent.addEventListener('click', () => jumpToNextEvent());
+  refs.btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
+  refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
+  refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
+  refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
+
+  refs.btnCamEarth.addEventListener('click', () => focusCameraPreset('earth-centered'));
+  refs.btnCamMoon.addEventListener('click', () => {
+    const moonState = getInterpolatedState(state.moonData, state.currentMs);
+    focusCameraPreset('moon-approach', { moonKm: moonState?.positionKm || null });
+  });
+  refs.btnCamFit.addEventListener('click', () => focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm }));
+
+  refs.timelineSlider.addEventListener('mousedown', () => { state.scrubbing = true; });
+  refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
+  refs.timelineSlider.addEventListener('input', () => {
+    if (!state.flatSamples.length || state.missionStopMs <= state.missionStartMs) return;
+    const f = Number(refs.timelineSlider.value) / Number(refs.timelineSlider.max);
+    state.currentMs = state.missionStartMs + f * (state.missionStopMs - state.missionStartMs);
+    updateScene();
+  });
+
+  window.addEventListener('mouseup', () => { state.scrubbing = false; });
+  window.addEventListener('touchend', () => { state.scrubbing = false; });
+}
+
 function setActiveTab(id) {
-  for (const btn of tabBar.querySelectorAll('.tab-btn')) {
+  for (const btn of refs.tabBar.querySelectorAll('.tab-btn')) {
     const active = btn.dataset.id === id;
     btn.classList.toggle('tab-active', active);
     btn.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -132,129 +217,65 @@ async function selectMission(id) {
   if (!mission) return;
 
   setActiveTab(id);
-  setStatus('Loading mission data…');
-  playing = false;
-  btnPlay.textContent = '▶ Play';
-
-  sbTitle.textContent = mission.displayName;
-  sbSummary.textContent = mission.summary;
   resetLoadedMissionState();
+
+  refs.sbTitle.textContent = mission.displayName;
+  refs.sbSummary.textContent = mission.summary;
+  state.playing = false;
+  refs.btnPlay.textContent = '▶ Play';
 
   if (!mission.enabled) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
-    setStatus('Data missing: mission placeholder (disabled).');
+    setSidebarStatus('Mission JSON missing');
     return;
   }
 
-  missionData = await loadMissionData(mission.normalizedPath);
-  moonData = await loadMissionData(mission.moonPath);
-  manifestData = await loadJson('./data/normalized/manifest.json');
-  const loadedEvents = await loadJson(mission.eventsPath);
-  events = sortEvents(loadedEvents);
+  setSidebarStatus('Fallback scene active — waiting for mission data');
 
-  if (!missionData) {
-    showOverlay('Normalized mission data missing. Run scripts/normalize_oem.py to generate mission JSON. Moon vectors from scripts/fetch_moon_vectors.py are optional.');
-    setStatus('Data missing: normalized mission JSON unavailable.');
+  let loadedEvents = null;
+  try {
+    state.missionData = await loadMissionData(mission.normalizedPath);
+    state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
+
+    state.moonData = await loadMissionData(mission.moonPath);
+    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
+
+    loadedEvents = await loadJson(mission.eventsPath);
+    state.events = sortEvents(loadedEvents);
+    state.diagnostics.eventsLoaded = Boolean(loadedEvents);
+    updateDebugOverlay();
+  } catch (error) {
+    handleStartupError('Mission asset fetch threw an exception', error);
+    return;
+  }
+
+  if (!state.missionData) {
+    showOverlay('Normalized mission data missing. Fallback scene remains active.');
+    setSidebarStatus('Mission JSON missing');
     return;
   }
 
   hideOverlay();
-  flatSamples = flattenSamples(missionData);
-  flatMoon = moonData ? flattenSamples(moonData) : [];
-  segmentBounds = getSortedSegmentBounds(missionData);
-  const bounds = getMissionTimeBounds(missionData);
-  missionStartMs = bounds?.startMs ?? 0;
-  missionStopMs = bounds?.stopMs ?? 0;
-  currentMs = missionStartMs;
+  state.flatSamples = flattenSamples(state.missionData);
+  const bounds = getMissionTimeBounds(state.missionData);
+  state.missionStartMs = bounds?.startMs ?? 0;
+  state.missionStopMs = bounds?.stopMs ?? 0;
+  state.currentMs = state.missionStartMs;
 
-  sbSampleCount.textContent = String(missionData?.derived?.sampleCount ?? flatSamples.length);
+  refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
 
-  const statusBits = ['Data loaded: mission JSON'];
-  statusBits.push(moonData ? 'moon loaded' : 'moon file missing');
-  statusBits.push(loadedEvents ? 'events loaded' : 'event file missing');
-  statusBits.push(events.some((event) => event.verified) ? 'verified events present' : 'placeholder events');
-  statusBits.push(manifestData ? 'manifest loaded' : 'manifest missing');
-  setStatus(statusBits.join(' | '));
-
-  setMissionTrailsBySegment(missionData.segments || []);
+  setMissionTrailsBySegment(state.missionData.segments || []);
   buildEventMarkers();
   refreshTimelineEventTicks();
-  focusCameraPreset('mission-fit', { boundsKm: missionData?.derived?.boundsKm });
+  focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm });
   updateScene();
+
+  const missionLabel = mission.id === 'artemis-1' ? 'Mission scene active — Artemis I' : 'Mission scene active — Artemis II';
+  setSidebarStatus(missionLabel);
+
+  if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
+  if (!loadedEvents) setErrorMessage('Event JSON missing; continuing without event markers.');
 }
-
-btnPlay.addEventListener('click', () => {
-  if (!flatSamples.length) return;
-  playing = !playing;
-  btnPlay.textContent = playing ? '⏸ Pause' : '▶ Play';
-  if (playing && currentMs >= missionStopMs) currentMs = missionStartMs;
-});
-
-btnReset.addEventListener('click', () => {
-  currentMs = missionStartMs;
-  playing = false;
-  btnPlay.textContent = '▶ Play';
-  updateScene();
-});
-
-btnJumpStart.addEventListener('click', () => jumpToMissionStart());
-btnJumpEnd.addEventListener('click', () => jumpToMissionEnd());
-btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
-btnNextEvent.addEventListener('click', () => jumpToNextEvent());
-btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
-btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
-btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
-btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
-
-btnCamEarth.addEventListener('click', () => focusCameraPreset('earth-centered'));
-btnCamMoon.addEventListener('click', () => {
-  const moonState = getInterpolatedState(moonData, currentMs);
-  focusCameraPreset('moon-approach', { moonKm: moonState?.positionKm || null });
-});
-btnCamFit.addEventListener('click', () => focusCameraPreset('mission-fit', { boundsKm: missionData?.derived?.boundsKm }));
-
-function jumpToMissionStart() {
-  currentMs = missionStartMs;
-  updateScene();
-}
-
-function jumpToMissionEnd() {
-  currentMs = missionStopMs;
-  updateScene();
-}
-
-function jumpToPreviousEvent() {
-  const ctx = getEventContext(events, currentMs);
-  if (ctx.previous) {
-    currentMs = ctx.previous.epochMs;
-    updateScene();
-  }
-}
-
-function jumpToNextEvent() {
-  const ctx = getEventContext(events, currentMs);
-  if (ctx.next) {
-    currentMs = ctx.next.epochMs;
-    updateScene();
-  }
-}
-
-function stepTime(deltaMs) {
-  if (!flatSamples.length) return;
-  currentMs = clamp(currentMs + deltaMs, missionStartMs, missionStopMs);
-  updateScene();
-}
-
-timelineSlider.addEventListener('mousedown', () => { scrubbing = true; });
-timelineSlider.addEventListener('touchstart', () => { scrubbing = true; }, { passive: true });
-timelineSlider.addEventListener('input', () => {
-  if (!flatSamples.length || missionStopMs <= missionStartMs) return;
-  const f = Number(timelineSlider.value) / Number(timelineSlider.max);
-  currentMs = missionStartMs + f * (missionStopMs - missionStartMs);
-  updateScene();
-});
-window.addEventListener('mouseup', () => { scrubbing = false; });
-window.addEventListener('touchend', () => { scrubbing = false; });
 
 function startRafLoop() {
   let prev = performance.now();
@@ -262,64 +283,67 @@ function startRafLoop() {
     const dtMs = now - prev;
     prev = now;
 
-    if (playing && flatSamples.length) {
-      const missionMsPerWallSecond = Number(speedSelect.value);
-      currentMs += (dtMs / 1000) * missionMsPerWallSecond;
-      if (currentMs >= missionStopMs) {
-        currentMs = missionStopMs;
-        playing = false;
-        btnPlay.textContent = '▶ Play';
+    if (state.playing && state.flatSamples.length) {
+      const missionMsPerWallSecond = Number(refs.speedSelect.value);
+      state.currentMs += (dtMs / 1000) * missionMsPerWallSecond;
+      if (state.currentMs >= state.missionStopMs) {
+        state.currentMs = state.missionStopMs;
+        state.playing = false;
+        refs.btnPlay.textContent = '▶ Play';
       }
-      currentMs = clamp(currentMs, missionStartMs, missionStopMs);
+      state.currentMs = clamp(state.currentMs, state.missionStartMs, state.missionStopMs);
       updateScene();
     }
 
-    renderScene();
+    try {
+      renderScene();
+    } catch (error) {
+      handleStartupError('Render loop failure', error);
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }
 
 function updateScene() {
-  if (!flatSamples.length) return;
-
-  if (!scrubbing && missionStopMs > missionStartMs) {
-    const f = (currentMs - missionStartMs) / (missionStopMs - missionStartMs);
-    timelineSlider.value = String(Math.round(f * Number(timelineSlider.max)));
+  if (!state.flatSamples.length) {
+    showFallbackBodies();
+    return;
   }
 
-  sbUtc.textContent = formatUtc(currentMs);
-  sbMet.textContent = formatMet(missionStartMs, currentMs);
+  if (!state.scrubbing && state.missionStopMs > state.missionStartMs) {
+    const f = (state.currentMs - state.missionStartMs) / (state.missionStopMs - state.missionStartMs);
+    refs.timelineSlider.value = String(Math.round(f * Number(refs.timelineSlider.max)));
+  }
 
-  const segState = findSegment(missionData, currentMs);
-  const moonState = getInterpolatedState(moonData, currentMs);
+  refs.sbUtc.textContent = formatUtc(state.currentMs);
+  refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+
+  const segState = findSegment(state.missionData, state.currentMs);
+  const moonState = getInterpolatedState(state.moonData, state.currentMs);
 
   let orionPos = null;
   if (segState.state === 'in-segment') {
-    const state = interpolateSegment(segState.segment, segState.snappedMs);
-    orionPos = state.positionKm;
+    const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
+    orionPos = segmentState.positionKm;
   } else if (segState.state === 'gap') {
-    const snapped = findSegment(missionData, segState.gap.nearestBoundaryMs);
+    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs);
     if (snapped.segment) {
-      const state = interpolateSegment(snapped.segment, snapped.snappedMs);
-      orionPos = state.positionKm;
+      const segmentState = interpolateSegment(snapped.segment, snapped.snappedMs);
+      orionPos = segmentState.positionKm;
     }
   }
 
-  if (orionPos) updateBodies(orionPos, moonState?.positionKm || null);
-  setTraversedTrailBySegment(missionData.segments || [], currentMs);
+  updateBodies(orionPos, moonState?.positionKm || null);
+  setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
 
-  const idx = findSampleIndex(flatSamples, currentMs);
-  sbFrame.textContent = `${idx + 1} / ${flatSamples.length} (${segState.state})`;
+  const idx = findSampleIndex(state.flatSamples, state.currentMs);
+  refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
 
-  const eventCtx = getEventContext(events, currentMs);
-  if (eventCtx.active) {
-    sbEvent.textContent = `${eventCtx.active.label} (active)`;
-  } else if (eventCtx.nearest) {
-    sbEvent.textContent = `${eventCtx.nearest.label} (nearest)`;
-  } else {
-    sbEvent.textContent = 'No events loaded';
-  }
+  const eventCtx = getEventContext(state.events, state.currentMs);
+  if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label} (active)`;
+  else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label} (nearest)`;
+  else refs.sbEvent.textContent = 'No events loaded';
 }
 
 function getInterpolatedState(data, tMs) {
@@ -331,66 +355,138 @@ function getInterpolatedState(data, tMs) {
 }
 
 function buildEventMarkers() {
-  eventMarkers = [];
-  for (const event of events) {
-    const segState = findSegment(missionData, event.epochMs);
+  state.eventMarkers = [];
+  for (const event of state.events) {
+    const segState = findSegment(state.missionData, event.epochMs);
     if (!segState?.segment || segState.state === 'gap') continue;
-    const state = interpolateSegment(segState.segment, segState.snappedMs);
-    eventMarkers.push({ id: event.id, label: event.label, positionKm: state.positionKm });
+    const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
+    state.eventMarkers.push({ id: event.id, label: event.label, positionKm: segmentState.positionKm });
   }
-  setEventMarkers(eventMarkers);
+  setEventMarkers(state.eventMarkers);
 }
 
 function refreshTimelineEventTicks() {
-  timelineTicks.innerHTML = '';
-  if (!events.length || missionStopMs <= missionStartMs) return;
+  refs.timelineTicks.innerHTML = '';
+  if (!state.events.length || state.missionStopMs <= state.missionStartMs) return;
 
-  for (const event of events) {
-    const pct = ((event.epochMs - missionStartMs) / (missionStopMs - missionStartMs)) * 100;
+  for (const event of state.events) {
+    const pct = ((event.epochMs - state.missionStartMs) / (state.missionStopMs - state.missionStartMs)) * 100;
     if (pct < 0 || pct > 100) continue;
     const tick = document.createElement('span');
     tick.className = 'timeline-tick';
     tick.style.left = `${pct}%`;
     tick.title = `${event.label} — ${event.epochUtc}`;
-    timelineTicks.appendChild(tick);
+    refs.timelineTicks.appendChild(tick);
   }
 }
 
 function resetLoadedMissionState() {
-  missionData = null;
-  moonData = null;
-  manifestData = null;
-  events = [];
-  eventMarkers = [];
-  segmentBounds = [];
-  flatSamples = [];
-  flatMoon = [];
-  missionStartMs = 0;
-  missionStopMs = 0;
-  currentMs = 0;
-  timelineSlider.value = timelineSlider.min;
-  sbUtc.textContent = '—';
-  sbMet.textContent = '—';
-  sbFrame.textContent = '—';
-  sbSampleCount.textContent = '—';
-  sbEvent.textContent = 'No events loaded';
+  state.missionData = null;
+  state.moonData = null;
+  state.events = [];
+  state.eventMarkers = [];
+  state.flatSamples = [];
+  state.missionStartMs = 0;
+  state.missionStopMs = 0;
+  state.currentMs = 0;
+
+  state.diagnostics.missionJsonLoaded = false;
+  state.diagnostics.moonJsonLoaded = false;
+  state.diagnostics.eventsLoaded = false;
+  updateDebugOverlay();
+
+  refs.timelineSlider.value = refs.timelineSlider.min;
+  refs.sbUtc.textContent = '—';
+  refs.sbMet.textContent = '—';
+  refs.sbFrame.textContent = '—';
+  refs.sbSampleCount.textContent = '—';
+  refs.sbEvent.textContent = 'No events loaded';
   refreshTimelineEventTicks();
   resetSceneDynamicState();
 }
 
+function jumpToMissionStart() {
+  state.currentMs = state.missionStartMs;
+  updateScene();
+}
+
+function jumpToMissionEnd() {
+  state.currentMs = state.missionStopMs;
+  updateScene();
+}
+
+function jumpToPreviousEvent() {
+  const ctx = getEventContext(state.events, state.currentMs);
+  if (ctx.previous) {
+    state.currentMs = ctx.previous.epochMs;
+    updateScene();
+  }
+}
+
+function jumpToNextEvent() {
+  const ctx = getEventContext(state.events, state.currentMs);
+  if (ctx.next) {
+    state.currentMs = ctx.next.epochMs;
+    updateScene();
+  }
+}
+
+function stepTime(deltaMs) {
+  if (!state.flatSamples.length) return;
+  state.currentMs = clamp(state.currentMs + deltaMs, state.missionStartMs, state.missionStopMs);
+  updateScene();
+}
+
 function onResize() {
-  resizeScene(canvas.clientWidth, canvas.clientHeight);
+  const width = refs?.canvas?.clientWidth || 960;
+  const height = refs?.canvas?.clientHeight || 540;
+  resizeScene(width, height);
 }
 
 function showOverlay(msg) {
-  overlayMsg.textContent = msg;
-  overlayMsg.classList.remove('hidden');
+  refs.overlayMsg.textContent = msg;
+  refs.overlayMsg.classList.remove('hidden');
 }
 
 function hideOverlay() {
-  overlayMsg.classList.add('hidden');
+  refs.overlayMsg.classList.add('hidden');
 }
 
-function setStatus(msg) {
-  sbStatus.textContent = msg;
+function setSidebarStatus(msg) {
+  refs.sbStatus.textContent = msg;
+}
+
+function setErrorMessage(message) {
+  state.diagnostics.lastError = message;
+  updateDebugOverlay();
+}
+
+function handleStartupError(context, error) {
+  const detail = error instanceof Error ? error.message : String(error || 'Unknown error');
+  const full = `${context}: ${detail}`;
+  console.error('[artemis-orbits] Runtime error', error);
+  state.playing = false;
+  if (refs?.btnPlay) refs.btnPlay.textContent = '▶ Play';
+  if (refs?.sbStatus) setSidebarStatus('Runtime error — see debug overlay');
+  if (refs?.overlayMsg) showOverlay('Runtime error while loading mission scene. Fallback scene remains active.');
+  try {
+    showFallbackBodies();
+    focusCameraPreset('fallback-overview');
+  } catch {
+    // keep going; diagnostics still records failure.
+  }
+  setErrorMessage(full);
+}
+
+function updateDebugOverlay() {
+  if (!refs?.debugOverlay) return;
+  const d = state.diagnostics;
+  refs.debugOverlay.textContent = [
+    `scene initialized: ${d.sceneInitialized ? 'yes' : 'no'}`,
+    `renderer initialized: ${d.rendererInitialized ? 'yes' : 'no'}`,
+    `mission JSON loaded: ${d.missionJsonLoaded ? 'yes' : 'no'}`,
+    `moon JSON loaded: ${d.moonJsonLoaded ? 'yes' : 'no'}`,
+    `events loaded: ${d.eventsLoaded ? 'yes' : 'no'}`,
+    `last error: ${d.lastError || 'none'}`,
+  ].join('\n');
 }

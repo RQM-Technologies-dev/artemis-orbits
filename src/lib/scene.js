@@ -12,48 +12,53 @@ const MOON_RADIUS_KM = 1_737;
 const ORION_MARKER_KM = 260;
 const ORION_HALO_KM = 430;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
+const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
+const FALLBACK_CANVAS_WIDTH = 960;
+const FALLBACK_CANVAS_HEIGHT = 540;
 
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
 
 export function createScene(canvas) {
+  const { width, height } = getSafeCanvasSize(canvas);
+
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   _renderer.setPixelRatio(window.devicePixelRatio);
-  _renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  _renderer.setSize(width, height, false);
   _renderer.setClearColor(0x000005);
 
   _scene = new THREE.Scene();
 
-  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const aspect = width / height;
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _scene.add(new THREE.AmbientLight(0x334466, 0.8));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+  _scene.add(new THREE.AmbientLight(0x4a5f85, 1.25));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(50, 30, 80);
   _scene.add(sun);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
-  const earthMat = new THREE.MeshPhongMaterial({ color: 0x2255aa, emissive: 0x051530, shininess: 30 });
+  const earthMat = new THREE.MeshPhongMaterial({ color: 0x2d6ad4, emissive: 0x0a2348, shininess: 35 });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
   _scene.add(_earthMesh);
 
   const moonGeo = new THREE.SphereGeometry(kmToScene(MOON_RADIUS_KM), 32, 24);
-  const moonMat = new THREE.MeshPhongMaterial({ color: 0x888888, emissive: 0x111111 });
+  const moonMat = new THREE.MeshPhongMaterial({ color: 0xb4b4b4, emissive: 0x242424, shininess: 8 });
   _moonMesh = new THREE.Mesh(moonGeo, moonMat);
-  _moonMesh.position.set(kmToScene(384_400), 0, 0);
+  _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
 
   const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
   _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffdd44 }));
-  _orionMarker.visible = false;
+  _orionMarker.visible = true;
   _scene.add(_orionMarker);
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
   _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.25 }));
-  _orionHalo.visible = false;
+  _orionHalo.visible = true;
   _scene.add(_orionHalo);
 
   _fullTrailGroup = new THREE.Group();
@@ -70,20 +75,21 @@ export function createScene(canvas) {
   _controls.dampingFactor = 0.08;
   _controls.minDistance = 0.1;
   _controls.maxDistance = 600;
+
+  showFallbackBodies();
+  focusCameraPreset('fallback-overview');
 }
 
 export function updateBodies(orionKm, moonKm) {
-  if (orionKm) {
-    const sx = kmToScene(orionKm[0]);
-    const sy = kmToScene(orionKm[1]);
-    const sz = kmToScene(orionKm[2]);
+  const orionPosKm = orionKm || DEFAULT_ORION_POSITION_KM;
+  if (orionPosKm) {
+    const sx = kmToScene(orionPosKm[0]);
+    const sy = kmToScene(orionPosKm[1]);
+    const sz = kmToScene(orionPosKm[2]);
     _orionMarker.position.set(sx, sy, sz);
     _orionHalo.position.set(sx, sy, sz);
     _orionMarker.visible = true;
     _orionHalo.visible = true;
-  } else {
-    _orionMarker.visible = false;
-    _orionHalo.visible = false;
   }
 
   const moonPosKm = moonKm || DEFAULT_MOON_POSITION_KM;
@@ -128,10 +134,14 @@ export function setEventMarkers(markers) {
 }
 
 export function resetSceneDynamicState() {
-  updateBodies(null, null);
+  showFallbackBodies();
   clearGroup(_fullTrailGroup);
   clearGroup(_traversedTrailGroup);
   clearGroup(_eventMarkerGroup);
+}
+
+export function showFallbackBodies() {
+  updateBodies(DEFAULT_ORION_POSITION_KM, DEFAULT_MOON_POSITION_KM);
 }
 
 export function focusCameraPreset(name, context = {}) {
@@ -156,16 +166,23 @@ export function focusCameraPreset(name, context = {}) {
     const distance = Math.max(2.5, kmToScene(span) * 1.2);
     _camera.position.set(cx + distance, cy + distance * 0.4, cz + distance);
     _controls.target.set(cx, cy, cz);
+  } else if (name === 'fallback-overview') {
+    const moonX = kmToScene(DEFAULT_MOON_POSITION_KM[0]);
+    const midX = moonX * 0.35;
+    _camera.position.set(midX, 5.5, 10.5);
+    _controls.target.set(midX, 0, 0);
   }
 
   _controls.update();
 }
 
 export function resizeScene(width, height) {
-  if (!_renderer) return;
-  _camera.aspect = width / height;
+  if (!_renderer || !_camera) return;
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : FALLBACK_CANVAS_WIDTH;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : FALLBACK_CANVAS_HEIGHT;
+  _camera.aspect = safeWidth / safeHeight;
   _camera.updateProjectionMatrix();
-  _renderer.setSize(width, height, false);
+  _renderer.setSize(safeWidth, safeHeight, false);
 }
 
 export function renderScene() {
@@ -228,4 +245,14 @@ function _makeStarField(count) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4, sizeAttenuation: true }));
+}
+
+function getSafeCanvasSize(canvas) {
+  const width = Number.isFinite(canvas?.clientWidth) && canvas.clientWidth > 0
+    ? canvas.clientWidth
+    : FALLBACK_CANVAS_WIDTH;
+  const height = Number.isFinite(canvas?.clientHeight) && canvas.clientHeight > 0
+    ? canvas.clientHeight
+    : FALLBACK_CANVAS_HEIGHT;
+  return { width, height };
 }
