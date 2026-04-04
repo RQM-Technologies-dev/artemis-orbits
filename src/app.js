@@ -17,6 +17,7 @@ import {
   showFallbackBodies,
   setPerformanceMode,
   setFollowCameraEnabled,
+  setFollowCameraMode,
   setEventMarkerClickHandler,
   setZoomChangeListener,
   zoomCamera,
@@ -25,6 +26,10 @@ import {
   resetZoom,
   setVisualPreset,
   getVisualPreset,
+  setOrionManeuverLevel,
+  setActiveEventCallout,
+  setOrionAttitudeReference,
+  captureSceneImage,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -42,6 +47,8 @@ import { formatUtc, formatMet, clamp } from './lib/time.js';
 const MS_PER_H = 3_600_000;
 const MS_PER_D = 86_400_000;
 const EVENT_NAV_EPS_MS = 1;
+const MANEUVER_WINDOW_MS = 25 * 60_000;
+const EVENT_CALLOUT_WINDOW_MS = 8 * 60_000;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -83,6 +90,8 @@ const state = {
   ui: {
     performanceMode: 'auto',
     followCamera: false,
+    followCameraMode: 'standard',
+    attitudeReference: 'velocity',
     cameraPreset: 'mission-fit',
     lastNonFollowCamera: 'mission-fit',
     visualPreset: 'bright',
@@ -172,6 +181,8 @@ function getDomRefs() {
     btnCamMoon: pick('btn-cam-moon'),
     btnCamFit: pick('btn-cam-fit'),
     btnCamFollow: pick('btn-cam-follow'),
+    followModeSelect: pick('follow-mode-select'),
+    attitudeSelect: pick('attitude-select'),
     btnZoomIn: pick('btn-zoom-in'),
     btnZoomOut: pick('btn-zoom-out'),
     btnZoomReset: pick('btn-zoom-reset'),
@@ -182,6 +193,7 @@ function getDomRefs() {
     btnCopyLink: pick('btn-copy-link'),
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
+    btnCapture: pick('btn-export-image'),
     annotationList: pick('mission-annotations'),
   };
 }
@@ -298,6 +310,20 @@ function wireUiEvents() {
     const nextPreset = enablingFollow ? 'follow-orion' : state.ui.lastNonFollowCamera;
     applyCameraPreset(nextPreset);
     setSidebarStatus(enablingFollow ? 'Camera preset: Follow Orion' : 'Follow camera disabled');
+  });
+  refs.followModeSelect.addEventListener('change', () => {
+    const next = refs.followModeSelect.value === 'cinematic' ? 'cinematic' : 'standard';
+    setFollowCameraModeUi(next);
+    setSidebarStatus(`Follow camera: ${next}`);
+  });
+  refs.attitudeSelect.addEventListener('change', () => {
+    const candidate = refs.attitudeSelect.value;
+    const next = ['velocity', 'earth', 'moon'].includes(candidate) ? candidate : 'velocity';
+    setAttitudeReferenceUi(next);
+    setSidebarStatus(`Capsule attitude: ${next}`);
+  });
+  refs.btnCapture.addEventListener('click', () => {
+    exportScenePng();
   });
   refs.btnZoomIn.addEventListener('click', () => {
     zoomCamera(1);
@@ -440,6 +466,9 @@ async function selectMission(id) {
   refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
   state.events = prepareMissionEvents(state.events, state.missionStartMs, state.missionStopMs);
 
+  setFollowCameraModeUi(state.ui.followCameraMode, { sync: false });
+  setAttitudeReferenceUi(state.ui.attitudeReference, { sync: false });
+
   setMissionTrailsBySegment(state.missionData.segments || []);
   setMoonTrajectoryBySegment(state.moonData?.segments || []);
   try {
@@ -513,19 +542,19 @@ function updateScene() {
   const segState = findSegment(state.missionData, state.currentMs);
   const moonState = getInterpolatedState(state.moonData, state.currentMs);
 
-  let orionPos = null;
+  let orionState = null;
   if (segState.state === 'in-segment') {
-    const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
-    orionPos = segmentState.positionKm;
+    orionState = interpolateSegment(segState.segment, segState.snappedMs);
   } else if (segState.state === 'gap') {
     const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs);
     if (snapped.segment) {
-      const segmentState = interpolateSegment(snapped.segment, snapped.snappedMs);
-      orionPos = segmentState.positionKm;
+      orionState = interpolateSegment(snapped.segment, snapped.snappedMs);
     }
   }
 
-  updateBodies(orionPos, moonState?.positionKm || null);
+  updateBodies(orionState?.positionKm || null, moonState?.positionKm || null, {
+    orionVelocityKmS: orionState?.velocityKmS || null,
+  });
   setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
 
   const idx = findSampleIndex(state.flatSamples, state.currentMs);
@@ -535,6 +564,10 @@ function updateScene() {
   if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
   else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
   else refs.sbEvent.textContent = 'No events loaded';
+
+  const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
+  setOrionManeuverLevel(maneuverIntensity);
+  setActiveEventCallout(getSceneEventCallout(state.events, state.currentMs));
   syncUrlState();
 }
 
@@ -820,6 +853,8 @@ function parseInitialUiStateFromUrl() {
   const cam = params.get('cam');
   const zoom = params.get('zoom');
   const vpreset = params.get('vpreset');
+  const followMode = params.get('followMode');
+  const attitude = params.get('attitude');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
@@ -839,6 +874,8 @@ function parseInitialUiStateFromUrl() {
   if (state.ui.cameraPreset === 'follow-orion') state.ui.followCamera = true;
   setFollowButtonUi();
   setFollowCameraEnabled(state.ui.followCamera);
+  setFollowCameraModeUi(followMode === 'cinematic' ? 'cinematic' : 'standard', { sync: false });
+  setAttitudeReferenceUi(['velocity', 'earth', 'moon'].includes(attitude || '') ? attitude : 'velocity', { sync: false });
   const presetMatch = VISUAL_PRESET_OPTIONS.find((opt) => opt.value === vpreset)?.value || getVisualPreset();
   setVisualPreset(presetMatch);
   state.ui.visualPreset = getVisualPreset();
@@ -871,6 +908,8 @@ function syncUrlState() {
   params.set('speed', refs.speedSelect.value);
   params.set('perf', state.ui.performanceMode);
   params.set('follow', state.ui.followCamera ? '1' : '0');
+  params.set('followMode', state.ui.followCameraMode || 'standard');
+  params.set('attitude', state.ui.attitudeReference || 'velocity');
   params.set('cam', state.ui.cameraPreset);
   params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
   params.set('vpreset', state.ui.visualPreset || getVisualPreset());
@@ -902,6 +941,66 @@ function setVisualPresetUi(value, { sync = true } = {}) {
   state.ui.visualPreset = getVisualPreset();
   refs.visualPresetSelect.value = state.ui.visualPreset;
   if (sync) syncUrlState();
+}
+
+
+function setAttitudeReferenceUi(value, { sync = true } = {}) {
+  const allowed = ['velocity', 'earth', 'moon'];
+  const next = allowed.includes(value) ? value : 'velocity';
+  state.ui.attitudeReference = next;
+  refs.attitudeSelect.value = next;
+  setOrionAttitudeReference(next);
+  if (sync) syncUrlState();
+}
+
+function setFollowCameraModeUi(value, { sync = true } = {}) {
+  const next = value === 'cinematic' ? 'cinematic' : 'standard';
+  state.ui.followCameraMode = next;
+  refs.followModeSelect.value = next;
+  setFollowCameraMode(next);
+  if (sync) syncUrlState();
+}
+
+function isManeuverEvent(event) {
+  if (!event) return false;
+  const text = `${event.type || ''} ${event.label || ''}`.toLowerCase();
+  return text.includes('burn') || text.includes('maneuver') || text.includes('trajectory correction') || text.includes('insertion') || text.includes('departure');
+}
+
+function getManeuverIntensity(events, currentMs) {
+  let best = 0;
+  for (const event of events || []) {
+    if (!isManeuverEvent(event)) continue;
+    const dt = Math.abs(event.epochMs - currentMs);
+    if (dt > MANEUVER_WINDOW_MS) continue;
+    const f = 1 - (dt / MANEUVER_WINDOW_MS);
+    if (f > best) best = f;
+  }
+  return clamp(best, 0, 1);
+}
+
+function getSceneEventCallout(events, currentMs) {
+  for (const event of events || []) {
+    if (Math.abs(event.epochMs - currentMs) <= EVENT_CALLOUT_WINDOW_MS) return event;
+  }
+  return null;
+}
+
+function exportScenePng() {
+  const dataUrl = captureSceneImage();
+  if (!dataUrl) {
+    setSidebarStatus('Unable to export scene image');
+    return;
+  }
+  const stamp = formatUtc(state.currentMs).replace(/[:]/g, '-').replace(/\./g, '-');
+  const filename = `${state.activeMissionId || 'artemis'}-${stamp}.png`;
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setSidebarStatus(`Exported screenshot: ${filename}`);
 }
 
 function showControlsHintIfNeeded() {

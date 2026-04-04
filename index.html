@@ -100,6 +100,21 @@
           <button id="btn-cam-follow" class="btn btn-sm">Follow Orion: Off</button>
         </div>
         <div class="controls-row speed-row">
+          <label for="follow-mode-select" class="ctrl-label">Follow mode</label>
+          <select id="follow-mode-select" class="select" aria-label="Follow camera mode">
+            <option value="standard">Standard</option>
+            <option value="cinematic">Cinematic</option>
+          </select>
+        </div>
+        <div class="controls-row speed-row">
+          <label for="attitude-select" class="ctrl-label">Attitude</label>
+          <select id="attitude-select" class="select" aria-label="Artemis attitude reference">
+            <option value="velocity">Velocity</option>
+            <option value="earth">Earth-pointing</option>
+            <option value="moon">Moon-pointing</option>
+          </select>
+        </div>
+        <div class="controls-row speed-row">
           <label for="visual-preset-select" class="ctrl-label">Visuals</label>
           <select id="visual-preset-select" class="select" aria-label="Visual brightness preset"></select>
         </div>
@@ -114,6 +129,9 @@
           <button id="btn-zoom-in" class="btn btn-sm" title="Zoom in (+)" aria-label="Zoom in">Zoom +</button>
           <button id="btn-zoom-out" class="btn btn-sm" title="Zoom out (-)" aria-label="Zoom out">Zoom −</button>
           <button id="btn-zoom-reset" class="btn btn-sm" title="Reset camera zoom" aria-label="Reset zoom">Reset zoom</button>
+        </div>
+        <div class="controls-row">
+          <button id="btn-export-image" class="btn btn-sm" title="Export current scene PNG" aria-label="Export scene image">Export PNG</button>
         </div>
         <p class="hint-text">Zoom shortcuts: + / − keys, mouse wheel, or touch pinch.</p>
       </div>
