@@ -21,10 +21,11 @@ let _earthMesh, _moonMesh, _orionMarker, _orionHalo;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
 
 export function createScene(canvas) {
+  if (!canvas) throw new Error('createScene(canvas) requires a valid canvas element');
   const { width, height } = getSafeCanvasSize(canvas);
 
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  _renderer.setPixelRatio(window.devicePixelRatio);
+  _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
   _renderer.setClearColor(0x000005);
 
@@ -34,19 +35,19 @@ export function createScene(canvas) {
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _scene.add(new THREE.AmbientLight(0x4a5f85, 1.25));
+  _scene.add(new THREE.AmbientLight(0x5f7fb0, 1.45));
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(50, 30, 80);
   _scene.add(sun);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
-  const earthMat = new THREE.MeshPhongMaterial({ color: 0x2d6ad4, emissive: 0x0a2348, shininess: 35 });
+  const earthMat = new THREE.MeshPhongMaterial({ color: 0x3f82f2, emissive: 0x13366d, shininess: 40 });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
   _scene.add(_earthMesh);
 
   const moonGeo = new THREE.SphereGeometry(kmToScene(MOON_RADIUS_KM), 32, 24);
-  const moonMat = new THREE.MeshPhongMaterial({ color: 0xb4b4b4, emissive: 0x242424, shininess: 8 });
+  const moonMat = new THREE.MeshPhongMaterial({ color: 0xcfcfcf, emissive: 0x303030, shininess: 10 });
   _moonMesh = new THREE.Mesh(moonGeo, moonMat);
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
@@ -81,6 +82,7 @@ export function createScene(canvas) {
 }
 
 export function updateBodies(orionKm, moonKm) {
+  if (!_orionMarker || !_orionHalo || !_moonMesh || !_earthMesh) return;
   const orionPosKm = orionKm || DEFAULT_ORION_POSITION_KM;
   if (orionPosKm) {
     const sx = kmToScene(orionPosKm[0]);
@@ -141,6 +143,9 @@ export function resetSceneDynamicState() {
 }
 
 export function showFallbackBodies() {
+  if (!_earthMesh || !_moonMesh || !_orionMarker || !_orionHalo) return;
+  _earthMesh.visible = true;
+  _moonMesh.visible = true;
   updateBodies(DEFAULT_ORION_POSITION_KM, DEFAULT_MOON_POSITION_KM);
 }
 
@@ -248,11 +253,15 @@ function _makeStarField(count) {
 }
 
 function getSafeCanvasSize(canvas) {
-  const width = Number.isFinite(canvas?.clientWidth) && canvas.clientWidth > 0
+  const rect = canvas?.getBoundingClientRect?.();
+  const rawWidth = Number.isFinite(canvas?.clientWidth) && canvas.clientWidth > 0
     ? canvas.clientWidth
-    : FALLBACK_CANVAS_WIDTH;
-  const height = Number.isFinite(canvas?.clientHeight) && canvas.clientHeight > 0
+    : (Number.isFinite(rect?.width) && rect.width > 0 ? rect.width : FALLBACK_CANVAS_WIDTH);
+  const rawHeight = Number.isFinite(canvas?.clientHeight) && canvas.clientHeight > 0
     ? canvas.clientHeight
-    : FALLBACK_CANVAS_HEIGHT;
-  return { width, height };
+    : (Number.isFinite(rect?.height) && rect.height > 0 ? rect.height : FALLBACK_CANVAS_HEIGHT);
+  return {
+    width: Math.max(1, Math.round(rawWidth)),
+    height: Math.max(1, Math.round(rawHeight)),
+  };
 }

@@ -69,9 +69,14 @@ bootstrapApp();
 function bootstrapApp() {
   try {
     refs = getDomRefs();
-    createScene(refs.canvas);
-    state.diagnostics.sceneInitialized = true;
-    state.diagnostics.rendererInitialized = true;
+    try {
+      createScene(refs.canvas);
+      state.diagnostics.sceneInitialized = true;
+      state.diagnostics.rendererInitialized = true;
+    } catch (error) {
+      handleStartupError('Scene creation failed', error);
+      return;
+    }
     updateDebugOverlay();
 
     showFallbackBodies();
@@ -87,6 +92,7 @@ function bootstrapApp() {
     startRafLoop();
     window.addEventListener('resize', onResize);
     onResize();
+    scheduleStartupResizeRetries();
   } catch (error) {
     handleStartupError('Bootstrap failed', error);
   }
@@ -232,26 +238,39 @@ async function selectMission(id) {
 
   setSidebarStatus('Fallback scene active — waiting for mission data');
 
-  let loadedEvents = null;
   try {
     state.missionData = await loadMissionData(mission.normalizedPath);
     state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
-
-    state.moonData = await loadMissionData(mission.moonPath);
-    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
-
-    loadedEvents = await loadJson(mission.eventsPath);
-    state.events = sortEvents(loadedEvents);
-    state.diagnostics.eventsLoaded = Boolean(loadedEvents);
-    updateDebugOverlay();
   } catch (error) {
-    handleStartupError('Mission asset fetch threw an exception', error);
+    handleStartupError('Mission JSON load failed', error);
     return;
   }
 
+  let loadedEvents = null;
+  try {
+    state.moonData = await loadMissionData(mission.moonPath);
+    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
+  } catch (error) {
+    setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  try {
+    loadedEvents = await loadJson(mission.eventsPath);
+    state.events = sortEvents(loadedEvents);
+    state.diagnostics.eventsLoaded = Boolean(loadedEvents);
+  } catch (error) {
+    setErrorMessage(`Event JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+    state.events = [];
+    state.diagnostics.eventsLoaded = false;
+  } finally {
+    updateDebugOverlay();
+  }
+
   if (!state.missionData) {
-    showOverlay('Normalized mission data missing. Fallback scene remains active.');
+    showOverlay('Mission JSON missing. Fallback scene remains active while data is unavailable.');
     setSidebarStatus('Mission JSON missing');
+    showFallbackBodies();
+    focusCameraPreset('fallback-overview');
     return;
   }
 
@@ -265,9 +284,18 @@ async function selectMission(id) {
   refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
 
   setMissionTrailsBySegment(state.missionData.segments || []);
-  buildEventMarkers();
+  try {
+    buildEventMarkers();
+  } catch (error) {
+    handleStartupError('Event marker build failed', error);
+    return;
+  }
   refreshTimelineEventTicks();
-  focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm });
+  try {
+    focusCameraPreset('mission-fit', { boundsKm: state.missionData?.derived?.boundsKm });
+  } catch (error) {
+    handleStartupError('Camera setup failed', error);
+  }
   updateScene();
 
   const missionLabel = mission.id === 'artemis-1' ? 'Mission scene active — Artemis I' : 'Mission scene active — Artemis II';
@@ -438,9 +466,23 @@ function stepTime(deltaMs) {
 }
 
 function onResize() {
-  const width = refs?.canvas?.clientWidth || 960;
-  const height = refs?.canvas?.clientHeight || 540;
+  const rect = refs?.canvas?.getBoundingClientRect?.();
+  const width = refs?.canvas?.clientWidth || rect?.width || Math.max(640, Math.floor(window.innerWidth * 0.66)) || 960;
+  const height = refs?.canvas?.clientHeight || rect?.height || Math.max(360, Math.floor(window.innerHeight * 0.6)) || 540;
   resizeScene(width, height);
+}
+
+function scheduleStartupResizeRetries() {
+  let tries = 0;
+  const maxTries = 8;
+  function retry() {
+    tries += 1;
+    onResize();
+    if (tries < maxTries && refs?.canvas && (refs.canvas.clientWidth <= 1 || refs.canvas.clientHeight <= 1)) {
+      requestAnimationFrame(retry);
+    }
+  }
+  requestAnimationFrame(retry);
 }
 
 function showOverlay(msg) {
@@ -454,6 +496,11 @@ function hideOverlay() {
 
 function setSidebarStatus(msg) {
   refs.sbStatus.textContent = msg;
+  const lowered = String(msg || '').toLowerCase();
+  refs.sbStatus.classList.remove('status-ok', 'status-warn', 'status-error');
+  if (lowered.includes('runtime error')) refs.sbStatus.classList.add('status-error');
+  else if (lowered.includes('fallback') || lowered.includes('missing') || lowered.includes('waiting')) refs.sbStatus.classList.add('status-warn');
+  else refs.sbStatus.classList.add('status-ok');
 }
 
 function setErrorMessage(message) {

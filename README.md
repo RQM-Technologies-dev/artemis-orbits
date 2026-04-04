@@ -68,6 +68,8 @@ These are placeholders with TODO labeling and **must be replaced with verified o
 
 This app is static and works at `/` as-is. For a Vercel subpath like `/NASA/Artemis/`, keep the prefix-stripping rewrites in `vercel.json`. They let HTML, module, stylesheet, and JSON requests under that prefix resolve back to the repo root.
 
+Fallback note: even if `data/normalized/*.json` has not been committed yet (or fetches fail), the viewer now stays in a visible fallback mode (Earth + Moon + Orion marker + stars) instead of showing a blank scene.
+
 1. Ensure generated normalized JSON exists in `data/normalized/`.
 2. Deploy repo to Vercel as a static project (no build command required).
 3. `vercel.json` must rewrite `/NASA/Artemis`, `/NASA/Artemis/`, and `/NASA/Artemis/:path*` so the prefixed entry URL and its static asset/data requests resolve cleanly.

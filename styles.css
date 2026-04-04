@@ -64,6 +64,9 @@ html, body {
 .card h2, .card h3 { font-size: .9rem; font-weight: 600; color: #fff; margin-bottom: 6px; }
 .muted { color: var(--text-dim); font-size: .82rem; }
 .status-msg { margin-top: 6px; font-size: .78rem; color: var(--green); min-height: 1.2em; }
+.status-msg.status-ok { color: var(--green); }
+.status-msg.status-warn { color: #f1cc6d; }
+.status-msg.status-error { color: #ff8d8d; font-weight: 600; }
 
 .telem-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--border); }
 .telem-row:last-child { border-bottom: none; }
