@@ -151,7 +151,7 @@ async function selectMission(id) {
   events = sortEvents(loadedEvents);
 
   if (!missionData) {
-    showOverlay('Normalized mission data missing. Run scripts/normalize_oem.py to generate mission JSON.');
+    showOverlay('Normalized mission data missing. Run scripts/normalize_oem.py to generate mission JSON. Moon vectors from scripts/fetch_moon_vectors.py are optional.');
     setStatus('Data missing: normalized mission JSON unavailable.');
     return;
   }

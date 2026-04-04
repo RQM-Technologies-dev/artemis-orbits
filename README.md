@@ -65,7 +65,7 @@ These are placeholders with TODO labeling and **must be replaced with verified o
 
 ## Vercel deployment
 
-This app is static and works at `/` as-is. For a Vercel subpath like `/NASA/Artemis/`, keep the prefix-stripping rewrites in `vercel.json` so HTML, module, stylesheet, and JSON requests under that prefix resolve back to the repo root.
+This app is static and works at `/` as-is. For a Vercel subpath like `/NASA/Artemis/`, keep the prefix-stripping rewrites in `vercel.json`. They let HTML, module, stylesheet, and JSON requests under that prefix resolve back to the repo root.
 
 1. Ensure generated normalized JSON exists in `data/normalized/`.
 2. Deploy repo to Vercel as a static project (no build command required).
