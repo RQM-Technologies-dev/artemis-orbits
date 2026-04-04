@@ -21,6 +21,12 @@
 
   <nav id="mission-tabs" role="tablist" aria-label="Mission selector"></nav>
 
+  <section id="mission-banner" class="card" aria-live="polite">
+    <h2 id="sb-mission-title">—</h2>
+    <p id="sb-mission-summary" class="muted">—</p>
+    <p id="sb-status-msg" class="status-msg">—</p>
+  </section>
+
   <main id="app-main">
     <section id="scene-panel" aria-label="3D orbit viewer">
       <canvas id="three-canvas"></canvas>
@@ -32,12 +38,6 @@
     </section>
 
     <aside id="sidebar">
-      <div class="card" id="mission-info">
-        <h2 id="sb-mission-title">—</h2>
-        <p id="sb-mission-summary" class="muted">—</p>
-        <p id="sb-status-msg" class="status-msg">—</p>
-      </div>
-
       <div class="card" id="telemetry">
         <div class="telem-row"><span class="telem-label">UTC</span><span class="telem-value" id="sb-utc">—</span></div>
         <div class="telem-row"><span class="telem-label">MET</span><span class="telem-value" id="sb-met">—</span></div>

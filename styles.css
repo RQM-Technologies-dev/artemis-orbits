@@ -24,6 +24,10 @@ html, body {
   font-size: 14px;
   line-height: 1.5;
 }
+body {
+  display: flex;
+  flex-direction: column;
+}
 
 #app-header { padding: 14px 20px 10px; border-bottom: 1px solid var(--border); background: #060810; }
 #app-header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: .04em; color: #fff; }
@@ -35,7 +39,16 @@ html, body {
 .tab-btn.tab-active { background: var(--tab-active); border-color: var(--border); color: #fff; }
 .tab-btn.tab-disabled { opacity: .35; cursor: not-allowed; }
 
-#app-main { display: grid; grid-template-columns: 1fr 320px; height: calc(100vh - 96px); }
+#mission-banner {
+  margin: 10px 10px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #111a2d 0%, #0f182a 100%);
+}
+#mission-banner h2 { margin: 0 0 4px; font-size: 1rem; }
+#mission-banner .muted { font-size: .8rem; }
+
+#app-main { display: grid; grid-template-columns: 1fr 320px; flex: 1; min-height: 0; }
 #scene-panel { position: relative; background: #000; overflow: hidden; }
 #three-canvas { display: block; width: 100%; height: 100%; }
 .scene-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 32px; text-align: center; background: rgba(7,9,15,.75); color: var(--text-dim); font-size: .9rem; line-height: 1.7; pointer-events: none; }
@@ -150,6 +163,6 @@ html, body {
 .slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: none; }
 
 @media (max-width: 860px) {
-  #app-main { grid-template-columns: 1fr; grid-template-rows: 60vw auto; }
+  #app-main { grid-template-columns: 1fr; grid-template-rows: minmax(360px, 60vw) auto; }
   #sidebar { border-left: none; border-top: 1px solid var(--border); }
 }
