@@ -103,6 +103,7 @@ const LANDING_DEFAULTS = Object.freeze({
 const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
   'artemis-2': '2026-04-02T01:57:37Z',
 });
+const HUD_REFRESH_INTERVAL_MS = 200;
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -162,6 +163,7 @@ let _ttsInFlight = new Set();
 let _spokenEvents = new Map();
 let _currentTtsAudio = null;
 let _pendingDefaultLandingUtc = null;
+let _lastHudRefreshAt = 0;
 
 bootstrapApp();
 
@@ -526,6 +528,10 @@ function refreshTelemetryOverlay(values) {
   if (refs.sbEarthDist) refs.sbEarthDist.textContent = values.earthDistLabel;
   if (refs.sbMoonDist) refs.sbMoonDist.textContent = values.moonDistLabel;
   if (refs.sbNextEvent) refs.sbNextEvent.textContent = values.nextEventLabel;
+}
+
+function clearPerformanceCaches() {
+  _lastHudRefreshAt = 0;
 }
 
 function buildSpeedOptions() {
@@ -1679,14 +1685,16 @@ function updateScene() {
   refs.sbUtc.textContent = formatUtc(state.currentMs);
   refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
 
-  const segState = findSegment(state.missionData, state.currentMs);
-  const moonState = getInterpolatedState(state.moonData, state.currentMs);
+  const missionBounds = state.missionData?.__cachedSortedSegmentBounds || null;
+  const moonBounds = state.moonData?.__cachedSortedSegmentBounds || null;
+  const segState = findSegment(state.missionData, state.currentMs, missionBounds);
+  const moonState = getInterpolatedState(state.moonData, state.currentMs, moonBounds);
 
   let orionState = null;
   if (segState.state === 'in-segment') {
     orionState = interpolateSegment(segState.segment, segState.snappedMs);
   } else if (segState.state === 'gap') {
-    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs);
+    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs, missionBounds);
     if (snapped.segment) {
       orionState = interpolateSegment(snapped.segment, snapped.snappedMs);
     }
@@ -1704,7 +1712,12 @@ function updateScene() {
   if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
   else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
   else refs.sbEvent.textContent = 'No events loaded';
-  refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+  const nowPerf = performance.now();
+  const shouldRefreshHud = (nowPerf - _lastHudRefreshAt) >= HUD_REFRESH_INTERVAL_MS || !state.playing;
+  if (shouldRefreshHud) {
+    refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+    _lastHudRefreshAt = nowPerf;
+  }
 
   const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
   setOrionManeuverLevel(maneuverIntensity);
@@ -1714,11 +1727,11 @@ function updateScene() {
   const visualCalloutEvent = sceneCalloutEvent?.id === 'mission-start' ? null : sceneCalloutEvent;
   setActiveEventCallout(visualCalloutEvent);
   maybeSpeakSceneEvent(visualCalloutEvent);
-  syncUrlState();
+  if (!state.playing && !state.ui.liveMode) syncUrlState();
 }
 
-function getInterpolatedState(data, tMs) {
-  const segState = findSegment(data, tMs);
+function getInterpolatedState(data, tMs, segmentBounds = null) {
+  const segState = findSegment(data, tMs, segmentBounds);
   if (segState?.segment && segState?.snappedMs != null) {
     return interpolateSegment(segState.segment, segState.snappedMs);
   }
