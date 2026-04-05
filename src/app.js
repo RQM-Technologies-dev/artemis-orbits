@@ -54,6 +54,11 @@ const EVENT_CALLOUT_WINDOW_MS = 8 * 60_000;
 const TTS_SERVICE_BASE_URL = 'https://rqm-api.onrender.com';
 const TTS_SPEAK_COOLDOWN_MS = 15_000;
 const LIVE_SYNC_EPS_MS = 250;
+const MAX_FRAME_DELTA_MS = 120;
+const HEAVY_UI_UPDATE_INTERVAL_MS = 120;
+const TRAVERSED_TRAIL_UPDATE_INTERVAL_MS = 160;
+const URL_SYNC_INTERVAL_MS = 350;
+const ZOOM_UI_UPDATE_INTERVAL_MS = 80;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -145,6 +150,10 @@ let _ttsVoiceCache = new Map();
 let _ttsInFlight = new Set();
 let _spokenEvents = new Map();
 let _currentTtsAudio = null;
+let _lastHeavyUiUpdateNow = 0;
+let _lastTrailUpdateNow = 0;
+let _lastUrlSyncNow = 0;
+let _lastZoomUiUpdateNow = 0;
 
 bootstrapApp();
 
@@ -1609,14 +1618,14 @@ async function selectMission(id) {
 function startRafLoop() {
   let prev = performance.now();
   function frame(now) {
-    const dtMs = now - prev;
+    const dtMs = Math.min(MAX_FRAME_DELTA_MS, Math.max(0, now - prev));
     prev = now;
 
     if (state.ui.liveMode && hasMissionTimeline()) {
       const liveClockMs = clamp(Date.now(), state.missionStartMs, state.missionStopMs);
       if (Math.abs(liveClockMs - state.currentMs) > LIVE_SYNC_EPS_MS) {
         state.currentMs = liveClockMs;
-        updateScene();
+        updateScene({ now, forceHeavy: true });
       }
     }
 
@@ -1629,34 +1638,50 @@ function startRafLoop() {
         refs.btnPlay.textContent = '▶ Play';
       }
       state.currentMs = clamp(state.currentMs, state.missionStartMs, state.missionStopMs);
-      updateScene();
+      updateScene({ now });
     }
 
     try {
       renderScene();
-      if (!state.scrubbing) syncZoomUiFromScene(false);
+      if (!state.scrubbing && (now - _lastZoomUiUpdateNow >= ZOOM_UI_UPDATE_INTERVAL_MS)) {
+        syncZoomUiFromScene(false);
+        _lastZoomUiUpdateNow = now;
+      }
     } catch (error) {
       handleStartupError('Render loop failure', error);
     }
-    syncZoomUiFromScene();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 }
 
-function updateScene() {
+function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
   if (!state.flatSamples.length) {
     showFallbackBodies();
     return;
   }
+  const shouldRunHeavyUi = forceHeavy
+    || !state.playing
+    || state.scrubbing
+    || (now - _lastHeavyUiUpdateNow >= HEAVY_UI_UPDATE_INTERVAL_MS);
+  const shouldUpdateTrail = forceHeavy
+    || !state.playing
+    || state.scrubbing
+    || (now - _lastTrailUpdateNow >= TRAVERSED_TRAIL_UPDATE_INTERVAL_MS);
+  const shouldSyncUrl = forceHeavy
+    || !state.playing
+    || state.scrubbing
+    || (now - _lastUrlSyncNow >= URL_SYNC_INTERVAL_MS);
 
   if (!state.scrubbing && state.missionStopMs > state.missionStartMs) {
     const f = (state.currentMs - state.missionStartMs) / (state.missionStopMs - state.missionStartMs);
     refs.timelineSlider.value = String(Math.round(f * Number(refs.timelineSlider.max)));
   }
 
-  refs.sbUtc.textContent = formatUtc(state.currentMs);
-  refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+  if (shouldRunHeavyUi) {
+    refs.sbUtc.textContent = formatUtc(state.currentMs);
+    refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+  }
 
   const segState = findSegment(state.missionData, state.currentMs);
   const moonState = getInterpolatedState(state.moonData, state.currentMs);
@@ -1674,23 +1699,32 @@ function updateScene() {
   updateBodies(orionState?.positionKm || null, moonState?.positionKm || null, {
     orionVelocityKmS: orionState?.velocityKmS || null,
   });
-  setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
+  if (shouldUpdateTrail) {
+    setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
+    _lastTrailUpdateNow = now;
+  }
 
-  const idx = findSampleIndex(state.flatSamples, state.currentMs);
-  refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
+  if (shouldRunHeavyUi) {
+    const idx = findSampleIndex(state.flatSamples, state.currentMs);
+    refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
 
-  const eventCtx = getEventContext(state.events, state.currentMs);
-  if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
-  else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
-  else refs.sbEvent.textContent = 'No events loaded';
-  refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+    const eventCtx = getEventContext(state.events, state.currentMs);
+    if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
+    else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
+    else refs.sbEvent.textContent = 'No events loaded';
+    refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
 
-  const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
-  setOrionManeuverLevel(maneuverIntensity);
-  const sceneCalloutEvent = getSceneEventCallout(state.events, state.currentMs);
-  setActiveEventCallout(sceneCalloutEvent);
-  maybeSpeakSceneEvent(sceneCalloutEvent);
-  syncUrlState();
+    const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
+    setOrionManeuverLevel(maneuverIntensity);
+    const sceneCalloutEvent = getSceneEventCallout(state.events, state.currentMs);
+    setActiveEventCallout(sceneCalloutEvent);
+    maybeSpeakSceneEvent(sceneCalloutEvent);
+    _lastHeavyUiUpdateNow = now;
+  }
+  if (shouldSyncUrl) {
+    syncUrlState();
+    _lastUrlSyncNow = now;
+  }
 }
 
 function getInterpolatedState(data, tMs) {
@@ -1752,6 +1786,10 @@ function resetLoadedMissionState() {
   _ttsVoiceCache = new Map();
   _ttsInFlight = new Set();
   _stopTtsPlayback();
+  _lastHeavyUiUpdateNow = 0;
+  _lastTrailUpdateNow = 0;
+  _lastUrlSyncNow = 0;
+  _lastZoomUiUpdateNow = 0;
 
   refs.timelineSlider.value = refs.timelineSlider.min;
   refs.sbUtc.textContent = '—';
