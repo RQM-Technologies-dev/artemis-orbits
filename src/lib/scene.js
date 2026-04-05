@@ -936,14 +936,21 @@ function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
   const target = _orionMarker.position.clone();
   _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
-  const baseOffset = (_followCameraMode === 'cinematic')
-    ? new THREE.Vector3(1.55, 0.74, 1.7)
-    : new THREE.Vector3(1.2, 0.55, 1.35);
-  const desired = target.clone().add(baseOffset.multiplyScalar(_followCameraDistanceScale));
+  const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
+    ? _orionVelocityScene.clone().normalize()
+    : new THREE.Vector3(1, 0, 0);
+  const forwardLead = _followCameraMode === 'cinematic' ? 0.52 : 0.38;
+  const upLift = _followCameraMode === 'cinematic' ? 0.74 : 0.55;
+  const trailingDistance = _followCameraMode === 'cinematic' ? 1.7 : 1.35;
+  const trailing = velocityDir.clone().multiplyScalar(-trailingDistance * _followCameraDistanceScale);
+  const lead = velocityDir.clone().multiplyScalar(forwardLead * _followCameraDistanceScale);
+  const up = new THREE.Vector3(0, 1, 0).multiplyScalar(upLift * _followCameraDistanceScale);
+  const desired = target.clone().add(trailing).add(up);
+  const desiredTarget = target.clone().add(lead);
   const camLerp = _followCameraMode === 'cinematic' ? 0.05 : 0.075;
   const tgtLerp = _followCameraMode === 'cinematic' ? 0.09 : 0.12;
   _camera.position.lerp(desired, camLerp);
-  _controls.target.lerp(target, tgtLerp);
+  _controls.target.lerp(desiredTarget, tgtLerp);
 }
 
 function _tickAutoExposure() {

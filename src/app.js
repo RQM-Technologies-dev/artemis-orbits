@@ -1177,7 +1177,6 @@ function applyCameraPreset(preset, { sync = true } = {}) {
     state.ui.followCamera = true;
     state.ui.cameraPreset = 'follow-orion';
     setFollowCameraEnabled(true);
-    focusCameraPreset('earth-centered');
     setFollowButtonUi();
     if (sync) syncUrlState();
     return;
