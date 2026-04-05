@@ -1,0 +1,286 @@
+{
+  "missionId": "artemis-3-legacy",
+  "baseMissionId": "artemis-3",
+  "missionPath": "data/normalized/artemis-3-legacy.json",
+  "eventsPath": "data/events/artemis-3-legacy.json",
+  "timeWindow": {
+    "startUtc": "2025-10-01T13:00:00.000Z",
+    "stopUtc": "2025-10-26T13:00:00.000Z",
+    "startEpochMs": 1759323600000,
+    "stopEpochMs": 1761483600000,
+    "durationSeconds": 2160000.0
+  },
+  "sampleCount": 1201,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 1800.0,
+  "eventChecks": [
+    {
+      "id": "legacy-phase-1",
+      "label": "Launch",
+      "epochUtc": "2025-10-01T13:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759323600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759323600000,
+        "supportStopEpochMs": 1759323600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-2",
+      "label": "Ascent staging",
+      "epochUtc": "2025-10-02T22:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759444200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759442400000,
+        "supportStopEpochMs": 1759444200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-3",
+      "label": "Temporary Earth orbit",
+      "epochUtc": "2025-10-04T07:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759563000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759563000000,
+        "supportStopEpochMs": 1759564800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-4",
+      "label": "Translunar injection",
+      "epochUtc": "2025-10-05T17:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759683600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759683600000,
+        "supportStopEpochMs": 1759683600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-5",
+      "label": "Outbound translunar cruise",
+      "epochUtc": "2025-10-07T02:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759804200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759802400000,
+        "supportStopEpochMs": 1759804200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-6",
+      "label": "Outbound powered flyby",
+      "epochUtc": "2025-10-08T11:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1759923000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1759923000000,
+        "supportStopEpochMs": 1759924800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-7",
+      "label": "NRHO insertion",
+      "epochUtc": "2025-10-09T21:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760043600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760043600000,
+        "supportStopEpochMs": 1760043600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-8",
+      "label": "Lander ready in NRHO",
+      "epochUtc": "2025-10-11T06:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760164200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760162400000,
+        "supportStopEpochMs": 1760164200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-9",
+      "label": "Dock / crew transfer",
+      "epochUtc": "2025-10-12T15:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760283000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760283000000,
+        "supportStopEpochMs": 1760284800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-10",
+      "label": "Descent staging",
+      "epochUtc": "2025-10-14T01:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760403600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760403600000,
+        "supportStopEpochMs": 1760403600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-11",
+      "label": "Surface mission",
+      "epochUtc": "2025-10-15T10:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760524200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760522400000,
+        "supportStopEpochMs": 1760524200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-12",
+      "label": "Orion loiter",
+      "epochUtc": "2025-10-16T19:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760643000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760643000000,
+        "supportStopEpochMs": 1760644800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-13",
+      "label": "Ascent / rendezvous",
+      "epochUtc": "2025-10-18T05:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760763600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760763600000,
+        "supportStopEpochMs": 1760763600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-14",
+      "label": "Post-docking loiter",
+      "epochUtc": "2025-10-19T14:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1760884200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1760882400000,
+        "supportStopEpochMs": 1760884200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-15",
+      "label": "NRHO departure",
+      "epochUtc": "2025-10-20T23:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1761003000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1761003000000,
+        "supportStopEpochMs": 1761004800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-16",
+      "label": "Return powered flyby",
+      "epochUtc": "2025-10-22T09:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1761123600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1761123600000,
+        "supportStopEpochMs": 1761123600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-17",
+      "label": "Return correction",
+      "epochUtc": "2025-10-23T18:20:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1761244200000,
+      "nearestSampleOffsetMs": -600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1761242400000,
+        "supportStopEpochMs": 1761244200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-18",
+      "label": "Service module separation",
+      "epochUtc": "2025-10-25T03:40:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1761363000000,
+      "nearestSampleOffsetMs": 600000,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1761363000000,
+        "supportStopEpochMs": 1761364800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "legacy-phase-19",
+      "label": "Entry and splashdown",
+      "epochUtc": "2025-10-26T13:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1761483600000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1761483600000,
+        "supportStopEpochMs": 1761483600000,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-05T02:15:24Z"
+}

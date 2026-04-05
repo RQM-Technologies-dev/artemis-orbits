@@ -26,3 +26,9 @@ jobs:
 
       - name: Verify normalization tests
         run: python3 tests/test_normalize.py
+
+      - name: Verify Artemis III mission model and proxy datasets
+        run: |
+          test -f data/models/artemis-3-mission-model.json
+          test -f data/models/artemis-3-legacy-nrho-proxy-cycle.json
+          test -f data/models/artemis-3-legacy-nrho-proxy-full.json

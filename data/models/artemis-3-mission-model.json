@@ -1,0 +1,162 @@
+{
+  "current_official": {
+    "title": "Artemis III (current official mission)",
+    "architecture_status": "official_current",
+    "launch_year": 2027,
+    "mission_type": "Rendezvous and Docking in Low Earth Orbit",
+    "summary": "NASA now defines Artemis III as a low Earth orbit integrated operations test between Orion and one or both commercial landers from SpaceX and Blue Origin. NASA says specific mission design details will be announced closer to launch.",
+    "known": [
+      "Launch on SLS with crew in Orion",
+      "Low Earth orbit demonstration",
+      "Tests rendezvous and docking with one or both commercial landers",
+      "Supports later lunar landing missions"
+    ],
+    "unknown": [
+      "No public exact orbital elements",
+      "No public ephemeris",
+      "No public altitude / inclination / phasing profile",
+      "No public phase-by-phase timeline beyond rendezvous/docking demo"
+    ]
+  },
+  "legacy_lunar_profile": {
+    "title": "Artemis III (archived lunar landing profile)",
+    "architecture_status": "archived_legacy",
+    "summary": "Archived NASA pages still document the earlier Artemis III lunar south-pole mission concept. This is the only publicly detailed Artemis III flight path NASA has published at phase level.",
+    "orion_staging_orbit": {
+      "name": "Southern 9:2 NRHO",
+      "period_days_public": 6.5,
+      "notes": [
+        "Near-constant communications with Earth",
+        "Chosen for South Pole access and low maintenance cost",
+        "Gateway baseline orbit is the same family"
+      ]
+    },
+    "phases": [
+      {
+        "id": 1,
+        "label": "Launch",
+        "vehicle": "SLS + Orion",
+        "summary": "Launch from Kennedy Space Center."
+      },
+      {
+        "id": 2,
+        "label": "Ascent staging",
+        "vehicle": "SLS",
+        "summary": "Booster/fairing/LAS jettison, then core stage shutdown and separation."
+      },
+      {
+        "id": 3,
+        "label": "Temporary Earth orbit",
+        "vehicle": "Orion",
+        "summary": "Enter Earth orbit, perform systems checks and solar panel adjustments."
+      },
+      {
+        "id": 4,
+        "label": "Translunar injection",
+        "vehicle": "Orion / ICPS",
+        "summary": "Depart Earth orbit for the Moon."
+      },
+      {
+        "id": 5,
+        "label": "Outbound translunar cruise",
+        "vehicle": "Orion",
+        "summary": "Several outbound correction burns on the way to the Moon."
+      },
+      {
+        "id": 6,
+        "label": "Outbound powered flyby",
+        "vehicle": "Orion",
+        "summary": "Lunar flyby maneuver near the Moon."
+      },
+      {
+        "id": 7,
+        "label": "NRHO insertion",
+        "vehicle": "Orion",
+        "summary": "Insert into lunar near-rectilinear halo orbit."
+      },
+      {
+        "id": 8,
+        "label": "Lander ready in NRHO",
+        "vehicle": "Starship HLS",
+        "summary": "HLS has already reached NRHO before crew arrival in the archived concept."
+      },
+      {
+        "id": 9,
+        "label": "Dock / crew transfer",
+        "vehicle": "Orion + HLS",
+        "summary": "Orion docks to HLS; two crew transfer."
+      },
+      {
+        "id": 10,
+        "label": "Descent staging",
+        "vehicle": "HLS",
+        "summary": "Undock, depart NRHO, and head toward low lunar orbit / descent."
+      },
+      {
+        "id": 11,
+        "label": "Surface mission",
+        "vehicle": "HLS",
+        "summary": "Approx. week-long surface mission near lunar South Pole."
+      },
+      {
+        "id": 12,
+        "label": "Orion loiter",
+        "vehicle": "Orion",
+        "summary": "Orion remains in NRHO for about one orbit (~6.5 days)."
+      },
+      {
+        "id": 13,
+        "label": "Ascent / rendezvous",
+        "vehicle": "HLS",
+        "summary": "Ascend from the surface, rendezvous, and dock back with Orion."
+      },
+      {
+        "id": 14,
+        "label": "Post-docking loiter",
+        "vehicle": "Orion",
+        "summary": "Up to five days in lunar orbit preparing for return."
+      },
+      {
+        "id": 15,
+        "label": "NRHO departure",
+        "vehicle": "Orion",
+        "summary": "Depart NRHO at the optimal point for Earth return."
+      },
+      {
+        "id": 16,
+        "label": "Return powered flyby",
+        "vehicle": "Orion",
+        "summary": "Powered flyby near the Moon to target Earth return."
+      },
+      {
+        "id": 17,
+        "label": "Return correction",
+        "vehicle": "Orion",
+        "summary": "Final return trajectory correction burn."
+      },
+      {
+        "id": 18,
+        "label": "Service module separation",
+        "vehicle": "Orion",
+        "summary": "Crew module separates before atmospheric entry."
+      },
+      {
+        "id": 19,
+        "label": "Entry and splashdown",
+        "vehicle": "Orion Crew Module",
+        "summary": "Earth entry and Pacific splashdown."
+      }
+    ],
+    "candidate_landing_regions_2024": [
+      "Peak near Cabeus B",
+      "Haworth",
+      "Malapert Massif",
+      "Mons Mouton Plateau",
+      "Mons Mouton",
+      "Nobile Rim 1",
+      "Nobile Rim 2",
+      "de Gerlache Rim 2",
+      "Slater Plain"
+    ]
+  }
+}

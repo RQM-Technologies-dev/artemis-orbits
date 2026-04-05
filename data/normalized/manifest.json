@@ -1,10 +1,11 @@
 {
   "schemaVersion": "1.0.0",
   "kind": "artemis-normalized-manifest",
-  "generatedAtUtc": "2026-04-04T21:15:20Z",
+  "generatedAtUtc": "2026-04-05T02:13:23Z",
   "missions": [
     {
       "missionId": "artemis-1",
+      "baseMissionId": "artemis-1",
       "displayName": "Artemis I",
       "status": "as-flown",
       "missionPath": "./data/normalized/artemis-1.json",
@@ -17,6 +18,7 @@
     },
     {
       "missionId": "artemis-2",
+      "baseMissionId": "artemis-2",
       "displayName": "Artemis II",
       "status": "as-flown",
       "missionPath": "./data/normalized/artemis-2.json",
@@ -26,6 +28,45 @@
       "segmentCount": 1,
       "missionStartUtc": "2026-04-02T01:57:37.084Z",
       "missionStopUtc": "2026-04-10T23:53:17.163Z"
+    },
+    {
+      "missionId": "artemis-3-current",
+      "baseMissionId": "artemis-3",
+      "displayName": "Artemis III",
+      "status": "planned",
+      "missionPath": "./data/normalized/artemis-3-current.json",
+      "moonPath": "./data/normalized/artemis-3-moon-current.json",
+      "eventPath": "./data/events/artemis-3-current.json",
+      "sampleCount": 721,
+      "segmentCount": 1,
+      "missionStartUtc": "2027-03-01T12:00:00.000Z",
+      "missionStopUtc": "2027-03-02T12:00:00.000Z"
+    },
+    {
+      "missionId": "artemis-3-legacy-nrho",
+      "baseMissionId": "artemis-3",
+      "displayName": "Artemis III (Legacy NRHO Detail Proxy)",
+      "status": "archived-legacy",
+      "missionPath": "./data/normalized/artemis-3-legacy-nrho.json",
+      "moonPath": "./data/normalized/artemis-3-moon-legacy-nrho.json",
+      "eventPath": "./data/events/artemis-3-legacy-nrho.json",
+      "sampleCount": 360,
+      "segmentCount": 1,
+      "missionStartUtc": "2025-10-06T12:00:00.000Z",
+      "missionStopUtc": "2025-10-13T00:29:25.325Z"
+    },
+    {
+      "missionId": "artemis-3-legacy",
+      "baseMissionId": "artemis-3",
+      "displayName": "Artemis III (Archived Legacy Lunar Profile)",
+      "status": "archived-legacy",
+      "missionPath": "./data/normalized/artemis-3-legacy.json",
+      "moonPath": "./data/normalized/artemis-3-moon-legacy.json",
+      "eventPath": "./data/events/artemis-3-legacy.json",
+      "sampleCount": 1201,
+      "segmentCount": 1,
+      "missionStartUtc": "2025-10-01T13:00:00.000Z",
+      "missionStopUtc": "2025-10-26T13:00:00.000Z"
     }
   ]
 }

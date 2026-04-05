@@ -1,5 +1,6 @@
 {
   "missionId": "artemis-1",
+  "baseMissionId": "artemis-1",
   "missionPath": "data/normalized/artemis-1.json",
   "eventsPath": "data/events/artemis-1.json",
   "timeWindow": {
@@ -127,5 +128,5 @@
     }
   ],
   "warnings": [],
-  "generatedAtUtc": "2026-04-04T22:31:55Z"
+  "generatedAtUtc": "2026-04-05T02:15:24Z"
 }
