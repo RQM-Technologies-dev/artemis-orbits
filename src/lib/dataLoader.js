@@ -2,6 +2,8 @@
  * dataLoader.js – fetch and parse normalized mission/event JSON files.
  */
 
+const _segmentBoundsCache = new WeakMap();
+
 /**
  * Load a JSON file by URL.
  * Returns parsed JSON or null if missing/unreadable.
@@ -62,6 +64,9 @@ export function flattenSamples(missionData) {
  * @returns {Array<object>}
  */
 export function getSortedSegmentBounds(missionData) {
+  if (!missionData || typeof missionData !== 'object') return [];
+  const cached = _segmentBoundsCache.get(missionData);
+  if (cached) return cached;
   const segs = missionData?.segments || [];
   const bounds = [];
   for (let segmentIdx = 0; segmentIdx < segs.length; segmentIdx++) {
@@ -76,6 +81,7 @@ export function getSortedSegmentBounds(missionData) {
     });
   }
   bounds.sort((a, b) => a.startMs - b.startMs || a.stopMs - b.stopMs);
+  _segmentBoundsCache.set(missionData, bounds);
   return bounds;
 }
 
@@ -99,8 +105,8 @@ export function getMissionTimeBounds(missionData) {
  * @param {number} tMs
  * @returns {{state:string, segment:object|null, segmentIdx:number|null, snappedMs:number|null, gap?:{prevStopMs:number,nextStartMs:number,nearestBoundaryMs:number}}}
  */
-export function findSegment(missionData, tMs) {
-  const bounds = getSortedSegmentBounds(missionData);
+export function findSegment(missionData, tMs, precomputedBounds = null) {
+  const bounds = Array.isArray(precomputedBounds) ? precomputedBounds : getSortedSegmentBounds(missionData);
   if (!bounds.length) {
     return { state: 'no-data', segment: null, segmentIdx: null, snappedMs: null };
   }
@@ -219,16 +225,29 @@ export function sortEvents(events) {
 export function getEventContext(events, currentMs) {
   if (!events.length) return { nearest: null, previous: null, next: null, active: null };
 
-  let previous = null;
-  let next = null;
-  let nearest = events[0];
-
-  for (const event of events) {
-    if (event.epochMs <= currentMs) previous = event;
-    if (!next && event.epochMs > currentMs) next = event;
-    if (Math.abs(event.epochMs - currentMs) < Math.abs(nearest.epochMs - currentMs)) {
-      nearest = event;
+  let lo = 0;
+  let hi = events.length - 1;
+  let previousIdx = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (events[mid].epochMs <= currentMs) {
+      previousIdx = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
     }
+  }
+
+  const previous = previousIdx >= 0 ? events[previousIdx] : null;
+  const next = previousIdx + 1 < events.length ? events[previousIdx + 1] : null;
+
+  let nearest = null;
+  if (previous && next) {
+    nearest = Math.abs(previous.epochMs - currentMs) <= Math.abs(next.epochMs - currentMs)
+      ? previous
+      : next;
+  } else {
+    nearest = previous || next || null;
   }
 
   const activeWindowMs = 5 * 60_000;
