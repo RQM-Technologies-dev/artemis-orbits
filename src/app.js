@@ -197,6 +197,7 @@ function getDomRefs() {
   return {
     tabBar: pick('mission-tabs'),
     canvas: pick('three-canvas'),
+    btnSceneStartMission: pickOptional('btn-scene-start-mission'),
     overlayMsg: pick('scene-overlay-msg'),
     sceneDisclaimer: pickOptional('scene-mode-disclaimer'),
     debugOverlay: pickOptional('scene-debug-overlay'),
@@ -1209,6 +1210,9 @@ function wireUiEvents() {
     if (state.playing && state.currentMs >= state.missionStopMs) state.currentMs = state.missionStartMs;
     setSidebarStatus(state.playing ? 'Playback running' : 'Playback paused');
   });
+  if (refs.btnSceneStartMission) {
+    refs.btnSceneStartMission.addEventListener('click', () => startMissionFromOverlay());
+  }
 
   refs.btnReset.addEventListener('click', () => {
     if (!hasMissionTimeline()) {
@@ -1688,8 +1692,11 @@ function updateScene() {
   const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
   setOrionManeuverLevel(maneuverIntensity);
   const sceneCalloutEvent = getSceneEventCallout(state.events, state.currentMs);
-  setActiveEventCallout(sceneCalloutEvent);
-  maybeSpeakSceneEvent(sceneCalloutEvent);
+  const showSceneStartButton = shouldShowSceneStartMissionButton(sceneCalloutEvent);
+  setSceneStartMissionButtonVisible(showSceneStartButton);
+  const visualCalloutEvent = sceneCalloutEvent?.id === 'mission-start' ? null : sceneCalloutEvent;
+  setActiveEventCallout(visualCalloutEvent);
+  maybeSpeakSceneEvent(visualCalloutEvent);
   syncUrlState();
 }
 
@@ -1764,8 +1771,34 @@ function resetLoadedMissionState() {
   if (refs.sbEarthDist) refs.sbEarthDist.textContent = '—';
   if (refs.sbMoonDist) refs.sbMoonDist.textContent = '—';
   if (refs.sbNextEvent) refs.sbNextEvent.textContent = '—';
+  setSceneStartMissionButtonVisible(false);
   refreshTimelineEventTicks();
   resetSceneDynamicState();
+}
+
+function setSceneStartMissionButtonVisible(visible) {
+  if (!refs?.btnSceneStartMission) return;
+  refs.btnSceneStartMission.classList.toggle('hidden', !visible);
+}
+
+function shouldShowSceneStartMissionButton(sceneCalloutEvent) {
+  if (!sceneCalloutEvent || sceneCalloutEvent.id !== 'mission-start') return false;
+  if (!hasMissionTimeline() || state.playing) return false;
+  return Math.abs(state.currentMs - state.missionStartMs) <= EVENT_NAV_EPS_MS;
+}
+
+function startMissionFromOverlay() {
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Playback unavailable — mission data not loaded');
+    return;
+  }
+  if (state.ui.liveMode) setLiveModeUi(false);
+  state.currentMs = state.missionStartMs;
+  state.playing = true;
+  refs.btnPlay.textContent = '⏸ Pause';
+  setSceneStartMissionButtonVisible(false);
+  updateScene();
+  setSidebarStatus('Playback running');
 }
 
 function jumpToMissionStart() {
