@@ -40,8 +40,9 @@ body {
 .subtitle { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
 .rqm-header-link {
   position: absolute;
-  top: 8px;
+  top: 50%;
   right: 16px;
+  transform: translateY(-50%);
   color: #9fd0ff;
   text-decoration: none;
   font-size: 1rem;
@@ -58,8 +59,9 @@ body {
 }
 .rqm-header-icon-link {
   position: absolute;
-  top: 6px;
+  top: 50%;
   left: 14px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
