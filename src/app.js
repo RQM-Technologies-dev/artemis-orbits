@@ -33,6 +33,7 @@ import {
   captureSceneImage,
   recenterFollowCamera,
   snapCameraToEventView,
+  getEffectivePerformanceMode,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -60,8 +61,23 @@ const MAX_FRAME_DELTA_MS = 120;
 const HEAVY_UI_UPDATE_INTERVAL_MS = 120;
 const TRAVERSED_TRAIL_UPDATE_INTERVAL_MS = 160;
 const URL_SYNC_INTERVAL_MS = 350;
+const PLAYING_HEAVY_UI_UPDATE_INTERVAL_MS = 180;
+const PLAYING_TRAVERSED_TRAIL_UPDATE_INTERVAL_MS = 220;
+const PLAYING_URL_SYNC_INTERVAL_MS = 1200;
 const ZOOM_UI_UPDATE_INTERVAL_MS = 80;
 const BACKGROUND_WARMUP_FRAMES = 10;
+const MIN_RENDER_FPS = 24;
+const MAX_RENDER_FPS = 60;
+const DEFAULT_TARGET_RENDER_FPS = 48;
+const TARGET_RENDER_FPS_BY_PERF_MODE = Object.freeze({
+  auto: 48,
+  balanced: 48,
+  high: 60,
+  low: 30,
+});
+const FPS_ADAPT_DOWN_COOLDOWN_MS = 800;
+const FPS_ADAPT_UP_COOLDOWN_MS = 2400;
+const FPS_ADAPT_UP_HEADROOM_MS = 6;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -123,9 +139,9 @@ function getDefaultFollowModeForMission(missionId) {
 const state = {
   activeMissionId: ACTIVE_MISSION_ID,
   missionData: null,
-  missionBounds: null,
+  missionBounds: [],
   moonData: null,
-  moonBounds: null,
+  moonBounds: [],
   events: [],
   missionPhases: [],
   eventMarkers: [],
@@ -188,6 +204,11 @@ let _lastUiRefreshAt = 0;
 let _phoneFriendlyMql = null;
 let _phoneFriendlyAutoplayKey = '';
 let _sceneHydrationToken = 0;
+let _renderTargetFps = DEFAULT_TARGET_RENDER_FPS;
+let _renderFrameIntervalMs = 1000 / DEFAULT_TARGET_RENDER_FPS;
+let _lastRenderFrameNow = 0;
+let _lastFpsAdaptDownNow = 0;
+let _lastFpsAdaptUpNow = 0;
 
 bootstrapApp();
 
@@ -216,6 +237,7 @@ function bootstrapApp() {
     initSidebarCollapsibles();
     wireUiEvents();
     parseInitialUiStateFromUrl();
+    updateRenderFrameBudget();
     syncZoomUiFromScene(true);
     showControlsHintIfNeeded();
 
@@ -648,6 +670,43 @@ function refreshTelemetryOverlay(values) {
 function clearPerformanceCaches() {
   _lastHudRefreshAt = 0;
   _lastUiRefreshAt = 0;
+  _lastRenderFrameNow = 0;
+  _lastFpsAdaptDownNow = 0;
+  _lastFpsAdaptUpNow = 0;
+}
+
+function getTargetRenderFpsForMode(mode) {
+  const normalizedMode = String(mode || '').trim();
+  const effectiveMode = normalizedMode === 'auto'
+    ? getEffectivePerformanceMode()
+    : normalizedMode;
+  const raw = TARGET_RENDER_FPS_BY_PERF_MODE[effectiveMode] ?? DEFAULT_TARGET_RENDER_FPS;
+  return clamp(raw, MIN_RENDER_FPS, MAX_RENDER_FPS);
+}
+
+function updateRenderFrameBudget() {
+  _renderTargetFps = getTargetRenderFpsForMode(state.ui.performanceMode);
+  _renderFrameIntervalMs = 1000 / _renderTargetFps;
+}
+
+function adaptRenderFpsByFrameCost(now, frameCostMs) {
+  const minFrameInterval = 1000 / MIN_RENDER_FPS;
+  if (frameCostMs > (_renderFrameIntervalMs + 2) && _renderFrameIntervalMs < minFrameInterval) {
+    if ((now - _lastFpsAdaptDownNow) >= FPS_ADAPT_DOWN_COOLDOWN_MS) {
+      _renderFrameIntervalMs = Math.min(minFrameInterval, _renderFrameIntervalMs * 1.12);
+      _lastFpsAdaptDownNow = now;
+      _lastFpsAdaptUpNow = now;
+    }
+    return;
+  }
+
+  if ((frameCostMs + FPS_ADAPT_UP_HEADROOM_MS) < _renderFrameIntervalMs && _renderFrameIntervalMs > 0) {
+    const baselineMs = 1000 / getTargetRenderFpsForMode(state.ui.performanceMode);
+    if (_renderFrameIntervalMs > baselineMs && (now - _lastFpsAdaptUpNow) >= FPS_ADAPT_UP_COOLDOWN_MS) {
+      _renderFrameIntervalMs = Math.max(baselineMs, _renderFrameIntervalMs * 0.95);
+      _lastFpsAdaptUpNow = now;
+    }
+  }
 }
 
 function buildSpeedOptions() {
@@ -1495,6 +1554,7 @@ function wireUiEvents() {
   refs.perfModeSelect.addEventListener('change', () => {
     state.ui.performanceMode = refs.perfModeSelect.value;
     setPerformanceMode(state.ui.performanceMode);
+    updateRenderFrameBudget();
     setSidebarStatus(`Performance mode: ${state.ui.performanceMode}`);
     syncUrlState();
   });
@@ -1781,8 +1841,18 @@ function scheduleDeferredSceneHydration(token) {
 function startRafLoop() {
   let prev = performance.now();
   function frame(now) {
+    if (_lastRenderFrameNow > 0) {
+      const elapsedSinceRender = now - _lastRenderFrameNow;
+      if (elapsedSinceRender < _renderFrameIntervalMs) {
+        requestAnimationFrame(frame);
+        return;
+      }
+    }
+
     const dtMs = Math.min(MAX_FRAME_DELTA_MS, Math.max(0, now - prev));
     prev = now;
+    _lastRenderFrameNow = now;
+    const frameStartedAt = performance.now();
 
     if (state.ui.liveMode && hasMissionTimeline()) {
       const liveClockMs = clamp(Date.now(), state.missionStartMs, state.missionStopMs);
@@ -1818,6 +1888,7 @@ function startRafLoop() {
         syncZoomUiFromScene(false);
         _lastZoomUiUpdateNow = now;
       }
+      adaptRenderFpsByFrameCost(now, performance.now() - frameStartedAt);
     } catch (error) {
       handleStartupError('Render loop failure', error);
     }
@@ -1831,18 +1902,21 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     showFallbackBodies();
     return;
   }
+  const heavyUiIntervalMs = state.playing ? PLAYING_HEAVY_UI_UPDATE_INTERVAL_MS : HEAVY_UI_UPDATE_INTERVAL_MS;
+  const trailUpdateIntervalMs = state.playing ? PLAYING_TRAVERSED_TRAIL_UPDATE_INTERVAL_MS : TRAVERSED_TRAIL_UPDATE_INTERVAL_MS;
+  const urlSyncIntervalMs = state.playing ? PLAYING_URL_SYNC_INTERVAL_MS : URL_SYNC_INTERVAL_MS;
   const shouldRunHeavyUi = forceHeavy
     || !state.playing
     || state.scrubbing
-    || (now - _lastHeavyUiUpdateNow >= HEAVY_UI_UPDATE_INTERVAL_MS);
+    || (now - _lastHeavyUiUpdateNow >= heavyUiIntervalMs);
   const shouldUpdateTrail = forceHeavy
     || !state.playing
     || state.scrubbing
-    || (now - _lastTrailUpdateNow >= TRAVERSED_TRAIL_UPDATE_INTERVAL_MS);
+    || (now - _lastTrailUpdateNow >= trailUpdateIntervalMs);
   const shouldSyncUrl = forceHeavy
     || !state.playing
     || state.scrubbing
-    || (now - _lastUrlSyncNow >= URL_SYNC_INTERVAL_MS);
+    || (now - _lastUrlSyncNow >= urlSyncIntervalMs);
 
   const nowPerf = performance.now();
   const shouldRefreshUi = !state.playing
@@ -1860,18 +1934,19 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     _lastUiRefreshAt = nowPerf;
   }
 
-  const missionBounds = state.missionBounds?.length ? state.missionBounds : null;
-  const moonBounds = state.moonBounds?.length ? state.moonBounds : null;
+  const missionBounds = state.missionBounds;
+  const moonBounds = state.moonBounds;
   const segState = findSegment(state.missionData, state.currentMs, missionBounds);
   const moonState = getInterpolatedState(state.moonData, state.currentMs, moonBounds);
 
   let orionState = null;
-  if (segState.state === 'in-segment') {
+  if (segState.segment && segState.snappedMs != null) {
     orionState = interpolateSegment(segState.segment, segState.snappedMs);
   } else if (segState.state === 'gap') {
-    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs, missionBounds);
-    if (snapped.segment) {
-      orionState = interpolateSegment(snapped.segment, snapped.snappedMs);
+    const nearestSegment = segState.gap?.nearestSegment || null;
+    const nearestBoundaryMs = segState.gap?.nearestBoundaryMs;
+    if (nearestSegment && Number.isFinite(nearestBoundaryMs)) {
+      orionState = interpolateSegment(nearestSegment, nearestBoundaryMs);
     }
   }
 
@@ -1923,9 +1998,8 @@ function getInterpolatedState(data, tMs, segmentBounds = null) {
 
 function buildEventMarkers() {
   state.eventMarkers = [];
-  const missionBounds = state.missionBounds?.length ? state.missionBounds : null;
   for (const event of state.events) {
-    const segState = findSegment(state.missionData, event.epochMs, missionBounds);
+    const segState = findSegment(state.missionData, event.epochMs, state.missionBounds);
     if (!segState?.segment || segState.state === 'gap') continue;
     const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
     state.eventMarkers.push({ id: event.id, label: event.label, positionKm: segmentState.positionKm });
@@ -1958,9 +2032,9 @@ function resetLoadedMissionState() {
   _sceneHydrationToken += 1;
   clearPerformanceCaches();
   state.missionData = null;
-  state.missionBounds = null;
+  state.missionBounds = [];
   state.moonData = null;
-  state.moonBounds = null;
+  state.moonBounds = [];
   state.events = [];
   state.missionPhases = [];
   state.eventMarkers = [];
@@ -2281,6 +2355,7 @@ function parseInitialUiStateFromUrl() {
     refs.perfModeSelect.value = state.ui.performanceMode;
   }
   setPerformanceMode(state.ui.performanceMode);
+  updateRenderFrameBudget();
   const hasCameraPresetInUrl = ['earth-centered', 'moon-approach', 'mission-fit', 'follow-orion'].includes(cam || '');
   if (hasCameraPresetInUrl) {
     state.ui.cameraPreset = cam;

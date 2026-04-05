@@ -132,32 +132,43 @@ export function findSegment(missionData, tMs, precomputedBounds = null) {
     };
   }
 
-  for (let i = 0; i < bounds.length; i++) {
-    const b = bounds[i];
-    if (tMs >= b.startMs && tMs <= b.stopMs) {
-      return {
-        state: 'in-segment',
-        segment: b.segment,
-        segmentIdx: b.segmentIdx,
-        snappedMs: tMs,
-      };
-    }
+  // Binary search: last segment whose start <= tMs.
+  let lo = 0;
+  let hi = bounds.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (bounds[mid].startMs <= tMs) lo = mid + 1;
+    else hi = mid;
+  }
 
-    const next = bounds[i + 1];
-    if (next && tMs > b.stopMs && tMs < next.startMs) {
-      const nearestBoundaryMs = (tMs - b.stopMs <= next.startMs - tMs) ? b.stopMs : next.startMs;
-      return {
-        state: 'gap',
-        segment: null,
-        segmentIdx: null,
-        snappedMs: nearestBoundaryMs,
-        gap: {
-          prevStopMs: b.stopMs,
-          nextStartMs: next.startMs,
-          nearestBoundaryMs,
-        },
-      };
-    }
+  const prevIdx = lo - 1;
+  const prev = prevIdx >= 0 ? bounds[prevIdx] : null;
+  if (prev && tMs <= prev.stopMs) {
+    return {
+      state: 'in-segment',
+      segment: prev.segment,
+      segmentIdx: prev.segmentIdx,
+      snappedMs: tMs,
+    };
+  }
+
+  const next = lo < bounds.length ? bounds[lo] : null;
+  if (prev && next && tMs > prev.stopMs && tMs < next.startMs) {
+    const nearestIsPrev = (tMs - prev.stopMs) <= (next.startMs - tMs);
+    const nearestBoundaryMs = nearestIsPrev ? prev.stopMs : next.startMs;
+    return {
+      state: 'gap',
+      segment: null,
+      segmentIdx: null,
+      snappedMs: nearestBoundaryMs,
+      gap: {
+        prevStopMs: prev.stopMs,
+        nextStartMs: next.startMs,
+        nearestBoundaryMs,
+        nearestSegment: nearestIsPrev ? prev.segment : next.segment,
+        nearestSegmentIdx: nearestIsPrev ? prev.segmentIdx : next.segmentIdx,
+      },
+    };
   }
 
   return {
