@@ -133,6 +133,14 @@
         <div class="controls-row">
           <button id="btn-export-image" class="btn btn-sm" title="Export current scene PNG" aria-label="Export scene image">Export PNG</button>
         </div>
+        <div class="controls-row toggle-row">
+          <button id="btn-tts-toggle" class="btn btn-sm is-toggled" title="Toggle event voice callouts" aria-label="Toggle event voice callouts">Event voice: On</button>
+          <span id="tts-status" class="capture-note">Voice callouts ready</span>
+        </div>
+        <div class="controls-row speed-row">
+          <label for="tts-volume" class="ctrl-label">Voice volume</label>
+          <input type="range" id="tts-volume" min="0" max="100" value="72" step="1" class="slider tts-volume-slider" aria-label="Event voice volume" />
+        </div>
         <p class="hint-text">Zoom shortcuts: + / − keys, mouse wheel, or touch pinch.</p>
       </div>
 

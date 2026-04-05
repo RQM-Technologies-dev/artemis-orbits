@@ -49,6 +49,8 @@ const MS_PER_D = 86_400_000;
 const EVENT_NAV_EPS_MS = 1;
 const MANEUVER_WINDOW_MS = 25 * 60_000;
 const EVENT_CALLOUT_WINDOW_MS = 8 * 60_000;
+const TTS_SERVICE_BASE_URL = 'https://rqm-api.onrender.com';
+const TTS_SPEAK_COOLDOWN_MS = 15_000;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -92,6 +94,8 @@ const state = {
     followCamera: false,
     followCameraMode: 'standard',
     attitudeReference: 'velocity',
+    eventVoiceEnabled: false,
+    eventVoiceVolume: 0.75,
     cameraPreset: 'mission-fit',
     lastNonFollowCamera: 'mission-fit',
     visualPreset: 'bright',
@@ -102,6 +106,10 @@ const state = {
 let refs = null;
 let _lastSyncedUrl = '';
 let _lastZoomUiValue = -1;
+let _ttsVoiceCache = new Map();
+let _ttsInFlight = new Set();
+let _spokenEvents = new Map();
+let _currentTtsAudio = null;
 
 bootstrapApp();
 
@@ -194,6 +202,9 @@ function getDomRefs() {
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
     btnCapture: pick('btn-export-image'),
+    chkEventVoice: pick('chk-event-voice'),
+    voiceVolumeSlider: pick('voice-volume-slider'),
+    voiceVolumeValue: pick('voice-volume-value'),
     annotationList: pick('mission-annotations'),
   };
 }
@@ -324,6 +335,21 @@ function wireUiEvents() {
   });
   refs.btnCapture.addEventListener('click', () => {
     exportScenePng();
+  });
+  refs.chkEventVoice.addEventListener('change', () => {
+    state.ui.eventVoiceEnabled = refs.chkEventVoice.checked;
+    if (!state.ui.eventVoiceEnabled) _stopTtsPlayback();
+    setSidebarStatus(state.ui.eventVoiceEnabled ? 'Event voice: On' : 'Event voice: Off');
+    syncUrlState();
+  });
+  refs.voiceVolumeSlider.addEventListener('input', () => {
+    const max = Number(refs.voiceVolumeSlider.max) || 100;
+    const raw = Number(refs.voiceVolumeSlider.value);
+    const volume = clamp(raw / max, 0, 1);
+    state.ui.eventVoiceVolume = volume;
+    refs.voiceVolumeValue.textContent = `${Math.round(volume * 100)}%`;
+    if (_currentTtsAudio) _currentTtsAudio.volume = volume;
+    syncUrlState();
   });
   refs.btnZoomIn.addEventListener('click', () => {
     zoomCamera(1);
@@ -468,6 +494,9 @@ async function selectMission(id) {
 
   setFollowCameraModeUi(state.ui.followCameraMode, { sync: false });
   setAttitudeReferenceUi(state.ui.attitudeReference, { sync: false });
+  refs.chkEventVoice.checked = state.ui.eventVoiceEnabled;
+  refs.voiceVolumeSlider.value = String(Math.round(state.ui.eventVoiceVolume * 100));
+  refs.voiceVolumeValue.textContent = `${Math.round(state.ui.eventVoiceVolume * 100)}%`;
 
   setMissionTrailsBySegment(state.missionData.segments || []);
   setMoonTrajectoryBySegment(state.moonData?.segments || []);
@@ -567,7 +596,9 @@ function updateScene() {
 
   const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
   setOrionManeuverLevel(maneuverIntensity);
-  setActiveEventCallout(getSceneEventCallout(state.events, state.currentMs));
+  const sceneCalloutEvent = getSceneEventCallout(state.events, state.currentMs);
+  setActiveEventCallout(sceneCalloutEvent);
+  maybeSpeakSceneEvent(sceneCalloutEvent);
   syncUrlState();
 }
 
@@ -620,6 +651,10 @@ function resetLoadedMissionState() {
   state.diagnostics.moonJsonLoaded = false;
   state.diagnostics.eventsLoaded = false;
   updateDebugOverlay();
+  _spokenEvents = new Map();
+  _ttsVoiceCache = new Map();
+  _ttsInFlight = new Set();
+  _stopTtsPlayback();
 
   refs.timelineSlider.value = refs.timelineSlider.min;
   refs.sbUtc.textContent = '—';
@@ -855,6 +890,8 @@ function parseInitialUiStateFromUrl() {
   const vpreset = params.get('vpreset');
   const followMode = params.get('followMode');
   const attitude = params.get('attitude');
+  const voice = params.get('voice');
+  const voiceVol = params.get('voiceVol');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
@@ -876,6 +913,9 @@ function parseInitialUiStateFromUrl() {
   setFollowCameraEnabled(state.ui.followCamera);
   setFollowCameraModeUi(followMode === 'cinematic' ? 'cinematic' : 'standard', { sync: false });
   setAttitudeReferenceUi(['velocity', 'earth', 'moon'].includes(attitude || '') ? attitude : 'velocity', { sync: false });
+  state.ui.eventVoiceEnabled = voice === '1';
+  const parsedVoiceVol = Number(voiceVol);
+  if (Number.isFinite(parsedVoiceVol)) state.ui.eventVoiceVolume = clamp(parsedVoiceVol, 0, 1);
   const presetMatch = VISUAL_PRESET_OPTIONS.find((opt) => opt.value === vpreset)?.value || getVisualPreset();
   setVisualPreset(presetMatch);
   state.ui.visualPreset = getVisualPreset();
@@ -910,6 +950,8 @@ function syncUrlState() {
   params.set('follow', state.ui.followCamera ? '1' : '0');
   params.set('followMode', state.ui.followCameraMode || 'standard');
   params.set('attitude', state.ui.attitudeReference || 'velocity');
+  params.set('voice', state.ui.eventVoiceEnabled ? '1' : '0');
+  params.set('voiceVol', (Number.isFinite(state.ui.eventVoiceVolume) ? state.ui.eventVoiceVolume : 0.75).toFixed(2));
   params.set('cam', state.ui.cameraPreset);
   params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
   params.set('vpreset', state.ui.visualPreset || getVisualPreset());
@@ -1001,6 +1043,73 @@ function exportScenePng() {
   link.click();
   link.remove();
   setSidebarStatus(`Exported screenshot: ${filename}`);
+}
+
+function maybeSpeakSceneEvent(event) {
+  if (!state.ui.eventVoiceEnabled) return;
+  if (!event?.id || !event?.label) return;
+  const now = Date.now();
+  const lastSpokenAt = _spokenEvents.get(event.id) || 0;
+  if (now - lastSpokenAt < TTS_SPEAK_COOLDOWN_MS) return;
+  if (_ttsInFlight.has(event.id)) return;
+  _spokenEvents.set(event.id, now);
+  _speakEventLabel(event.id, event.label).catch(() => {
+    // Fail quietly; visual callouts still show event context.
+  });
+}
+
+async function _speakEventLabel(eventId, label) {
+  const text = String(label || '').trim();
+  if (!text) return;
+  const cacheKey = `${eventId}:${text}`;
+  if (_ttsVoiceCache.has(cacheKey)) {
+    _playAudioDataUrl(_ttsVoiceCache.get(cacheKey));
+    return;
+  }
+  _ttsInFlight.add(eventId);
+  try {
+    const res = await fetch(`${TTS_SERVICE_BASE_URL}/v1/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        voice: 'alloy',
+        format: 'mp3',
+      }),
+    });
+    if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+    const payload = await res.json();
+    const audioBase64 = payload?.audioBase64;
+    if (!audioBase64) throw new Error('Missing audioBase64 in /v1/tts response');
+    const dataUrl = `data:audio/mpeg;base64,${audioBase64}`;
+    _ttsVoiceCache.set(cacheKey, dataUrl);
+    _playAudioDataUrl(dataUrl);
+  } finally {
+    _ttsInFlight.delete(eventId);
+  }
+}
+
+function _playAudioDataUrl(dataUrl) {
+  _stopTtsPlayback();
+  const audio = new Audio(dataUrl);
+  audio.volume = clamp(state.ui.eventVoiceVolume, 0, 1);
+  _currentTtsAudio = audio;
+  audio.addEventListener('ended', () => {
+    if (_currentTtsAudio === audio) _currentTtsAudio = null;
+  }, { once: true });
+  audio.play().catch(() => {
+    // Browser autoplay policies can block audio until user interaction.
+  });
+}
+
+function _stopTtsPlayback() {
+  if (!_currentTtsAudio) return;
+  _currentTtsAudio.pause();
+  _currentTtsAudio.currentTime = 0;
+  _currentTtsAudio = null;
 }
 
 function showControlsHintIfNeeded() {

@@ -120,6 +120,13 @@ body {
 
 .controls-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .controls-row.toggle-row { align-items: center; justify-content: space-between; }
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .74rem;
+  color: var(--text-dim);
+}
 .btn { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: #1a2338; color: var(--text); cursor: pointer; font-size: .77rem; }
 .btn:hover { background: #1f2d48; border-color: var(--accent-dim); }
 .btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
