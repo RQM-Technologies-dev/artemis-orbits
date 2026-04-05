@@ -40,17 +40,48 @@ body {
 .subtitle { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
 .rqm-header-link {
   position: absolute;
-  top: 10px;
+  top: 8px;
   right: 16px;
   color: #9fd0ff;
   text-decoration: none;
-  font-size: .78rem;
+  font-size: 1rem;
   font-weight: 700;
-  letter-spacing: .02em;
+  letter-spacing: .03em;
+  line-height: 1.1;
+  text-shadow:
+    0 0 1px rgba(0, 0, 0, 0.85),
+    0 0 8px rgba(74, 144, 226, 0.35);
 }
 .rqm-header-link:hover {
   color: #c6e3ff;
   text-decoration: underline;
+}
+.rqm-header-icon-link {
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  text-decoration: none;
+  color: #9fd0ff;
+  box-shadow:
+    0 0 0 1px rgba(130, 198, 255, 0.45) inset,
+    0 0 10px rgba(74, 144, 226, 0.35);
+}
+.rqm-header-icon-link:hover {
+  color: #d9f2ff;
+  box-shadow:
+    0 0 0 1px rgba(166, 219, 255, 0.75) inset,
+    0 0 14px rgba(74, 144, 226, 0.55);
+}
+.rqm-header-icon {
+  width: 30px;
+  height: 30px;
+  display: block;
 }
 
 #mission-nav {
