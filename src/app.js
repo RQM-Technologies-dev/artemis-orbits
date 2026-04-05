@@ -204,12 +204,12 @@ function getDomRefs() {
     btnReset: pick('btn-reset'),
     btnJumpStart: pick('btn-jump-start'),
     btnJumpEnd: pick('btn-jump-end'),
-    btnPrevEvent: pick('btn-prev-event'),
-    btnNextEvent: pick('btn-next-event'),
-    btnMinus1h: pick('btn-minus-1h'),
-    btnPlus1h: pick('btn-plus-1h'),
-    btnMinus1d: pick('btn-minus-1d'),
-    btnPlus1d: pick('btn-plus-1d'),
+    btnPrevEvent: pickOptional('btn-prev-event'),
+    btnNextEvent: pickOptional('btn-next-event'),
+    btnMinus1h: pickOptional('btn-minus-1h'),
+    btnPlus1h: pickOptional('btn-plus-1h'),
+    btnMinus1d: pickOptional('btn-minus-1d'),
+    btnPlus1d: pickOptional('btn-plus-1d'),
     btnLive: pickOptional('btn-live'),
     speedSelect: pick('speed-select'),
     timelineSlider: pick('timeline-slider'),
@@ -898,12 +898,12 @@ function wireUiEvents() {
 
   refs.btnJumpStart.addEventListener('click', () => jumpToMissionStart());
   refs.btnJumpEnd.addEventListener('click', () => jumpToMissionEnd());
-  refs.btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
-  refs.btnNextEvent.addEventListener('click', () => jumpToNextEvent());
-  refs.btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
-  refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
-  refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
-  refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
+  if (refs.btnPrevEvent) refs.btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
+  if (refs.btnNextEvent) refs.btnNextEvent.addEventListener('click', () => jumpToNextEvent());
+  if (refs.btnMinus1h) refs.btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
+  if (refs.btnPlus1h) refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
+  if (refs.btnMinus1d) refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
+  if (refs.btnPlus1d) refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
   if (refs.btnLive) {
     refs.btnLive.addEventListener('click', () => {
       setLiveModeUi(!state.ui.liveMode);
