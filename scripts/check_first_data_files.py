@@ -14,6 +14,14 @@ REQUIRED = [
     Path('data/normalized/artemis-3-moon-legacy.json'),
     Path('data/normalized/artemis-3-legacy-nrho.json'),
     Path('data/normalized/artemis-3-moon-legacy-nrho.json'),
+    Path('data/normalized/artemis-5-current.json'),
+    Path('data/normalized/artemis-5-moon-current.json'),
+    Path('data/normalized/artemis-5-current-nrho.json'),
+    Path('data/normalized/artemis-5-moon-current-nrho.json'),
+    Path('data/normalized/artemis-5-legacy.json'),
+    Path('data/normalized/artemis-5-moon-legacy.json'),
+    Path('data/normalized/artemis-5-legacy-nrho.json'),
+    Path('data/normalized/artemis-5-moon-legacy-nrho.json'),
     Path('data/normalized/manifest.json'),
 ]
 

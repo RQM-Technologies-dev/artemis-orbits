@@ -1,0 +1,42 @@
+[
+  {
+    "id": "legacy-nrho-cycle-start",
+    "label": "NRHO cycle start (proxy)",
+    "epochUtc": "2029-04-02T06:00:00.000Z",
+    "metSeconds": 0,
+    "type": "system-boundary",
+    "verified": false,
+    "sourceNote": "Derived from public NASA Gateway NRHO reference data; proxy only, used for archived/provider-specific Artemis V detail mode.",
+    "description": "Start of representative one-revolution southern 9:2 Gateway NRHO proxy cycle."
+  },
+  {
+    "id": "legacy-nrho-perilune",
+    "label": "Perilune pass (~1,521 km altitude proxy)",
+    "epochUtc": "2029-04-02T06:00:00.000Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Derived from public NASA Gateway NRHO reference data; proxy only, used for archived/provider-specific Artemis V detail mode.",
+    "description": "Closest approach segment of representative NRHO proxy cycle."
+  },
+  {
+    "id": "legacy-nrho-apolune",
+    "label": "Apolune segment (~69,356 km altitude proxy)",
+    "epochUtc": "2029-04-05T12:01:38.031Z",
+    "metSeconds": 280898,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Derived from public NASA Gateway NRHO reference data; proxy only, used for archived/provider-specific Artemis V detail mode.",
+    "description": "Farthest-distance segment of representative NRHO proxy cycle."
+  },
+  {
+    "id": "legacy-nrho-cycle-end",
+    "label": "NRHO cycle end (proxy)",
+    "epochUtc": "2029-04-08T18:29:25.324Z",
+    "metSeconds": 563365,
+    "type": "system-boundary",
+    "verified": false,
+    "sourceNote": "Derived from public NASA Gateway NRHO reference data; proxy only, used for archived/provider-specific Artemis V detail mode.",
+    "description": "End of representative one-revolution southern 9:2 Gateway NRHO proxy cycle."
+  }
+]

@@ -141,7 +141,17 @@ def print_report(report: dict, out_path: Path) -> None:
 
 def default_jobs(normalized_dir: Path) -> list[tuple[Path, Path]]:
     jobs = []
-    for mission_id in ('artemis-1', 'artemis-2', 'artemis-3-current', 'artemis-3-legacy', 'artemis-3-legacy-nrho'):
+    for mission_id in (
+        'artemis-1',
+        'artemis-2',
+        'artemis-3-current',
+        'artemis-3-legacy',
+        'artemis-3-legacy-nrho',
+        'artemis-5-current',
+        'artemis-5-current-nrho',
+        'artemis-5-legacy',
+        'artemis-5-legacy-nrho',
+    ):
         mission_path = normalized_dir / f'{mission_id}.json'
         events_path = Path('data/events') / f'{mission_id}.json'
         jobs.append((mission_path, events_path))

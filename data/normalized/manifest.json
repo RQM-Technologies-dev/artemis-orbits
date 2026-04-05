@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0.0",
   "kind": "artemis-normalized-manifest",
-  "generatedAtUtc": "2026-04-05T02:13:23Z",
+  "generatedAtUtc": "2026-04-05T03:35:32Z",
   "missions": [
     {
       "missionId": "artemis-1",
@@ -67,6 +67,58 @@
       "segmentCount": 1,
       "missionStartUtc": "2025-10-01T13:00:00.000Z",
       "missionStopUtc": "2025-10-26T13:00:00.000Z"
+    },
+    {
+      "missionId": "artemis-5-current-nrho",
+      "baseMissionId": "artemis-5",
+      "displayName": "Artemis V (Current NRHO Detail Proxy)",
+      "status": "official-current-proxy",
+      "missionPath": "./data/normalized/artemis-5-current-nrho.json",
+      "moonPath": null,
+      "eventPath": "./data/events/artemis-5-current-nrho.json",
+      "sampleCount": 360,
+      "segmentCount": 1,
+      "missionStartUtc": "2028-12-02T09:00:00.000Z",
+      "missionStopUtc": "2028-12-08T21:29:25.324Z"
+    },
+    {
+      "missionId": "artemis-5-current",
+      "baseMissionId": "artemis-5",
+      "displayName": "Artemis V",
+      "status": "official-current",
+      "missionPath": "./data/normalized/artemis-5-current.json",
+      "moonPath": null,
+      "eventPath": "./data/events/artemis-5-current.json",
+      "sampleCount": 558,
+      "segmentCount": 1,
+      "missionStartUtc": "2028-11-18T14:00:00.000Z",
+      "missionStopUtc": "2028-12-02T08:29:25.324Z"
+    },
+    {
+      "missionId": "artemis-5-legacy-nrho",
+      "baseMissionId": "artemis-5",
+      "displayName": "Artemis V (Archived NRHO Detail Proxy)",
+      "status": "archived-legacy-proxy",
+      "missionPath": "./data/normalized/artemis-5-legacy-nrho.json",
+      "moonPath": null,
+      "eventPath": "./data/events/artemis-5-legacy-nrho.json",
+      "sampleCount": 360,
+      "segmentCount": 1,
+      "missionStartUtc": "2029-04-02T06:00:00.000Z",
+      "missionStopUtc": "2029-04-08T18:29:25.324Z"
+    },
+    {
+      "missionId": "artemis-5-legacy",
+      "baseMissionId": "artemis-5",
+      "displayName": "Artemis V (Archived provider-specific profile)",
+      "status": "archived-legacy",
+      "missionPath": "./data/normalized/artemis-5-legacy.json",
+      "moonPath": null,
+      "eventPath": "./data/events/artemis-5-legacy.json",
+      "sampleCount": 638,
+      "segmentCount": 1,
+      "missionStartUtc": "2029-03-07T12:00:00.000Z",
+      "missionStopUtc": "2029-03-22T20:29:25.324Z"
     }
   ]
 }

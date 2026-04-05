@@ -1,0 +1,162 @@
+[
+  {
+    "id": "phase-1",
+    "label": "Launch",
+    "epochUtc": "2029-03-07T12:00:00.000Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Launch from Kennedy Space Center with Orion and Lunar View co-manifested."
+  },
+  {
+    "id": "phase-2",
+    "label": "Low-Earth orbit checks",
+    "epochUtc": "2029-03-08T12:33:57.688Z",
+    "metSeconds": 88437,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Mission control and crew complete final checks in low Earth orbit."
+  },
+  {
+    "id": "phase-3",
+    "label": "Translunar injection",
+    "epochUtc": "2029-03-09T13:07:55.377Z",
+    "metSeconds": 176875,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "The upper stage sends Orion and Lunar View toward the Moon."
+  },
+  {
+    "id": "phase-4",
+    "label": "Transposition and extraction",
+    "epochUtc": "2029-03-10T13:41:53.065Z",
+    "metSeconds": 265313,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Orion separates, turns around, docks with Lunar View, and extracts it from the upper stage."
+  },
+  {
+    "id": "phase-5",
+    "label": "Outbound cruise",
+    "epochUtc": "2029-03-11T14:15:50.753Z",
+    "metSeconds": 353750,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Orion and Lunar View coast toward the Moon."
+  },
+  {
+    "id": "phase-6",
+    "label": "Lunar flyby / gravity assist",
+    "epochUtc": "2029-03-12T14:49:48.442Z",
+    "metSeconds": 442188,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "The detailed ESA public profile includes a lunar flyby / gravity-assist step before Gateway arrival."
+  },
+  {
+    "id": "phase-7",
+    "label": "NRHO arrival",
+    "epochUtc": "2029-03-13T15:23:46.130Z",
+    "metSeconds": 530626,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Arrival at Gateway's near-rectilinear halo orbit."
+  },
+  {
+    "id": "phase-8",
+    "label": "Dock with Gateway",
+    "epochUtc": "2029-03-14T15:57:43.818Z",
+    "metSeconds": 619063,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Orion docks with Gateway and connects / installs Lunar View."
+  },
+  {
+    "id": "phase-9",
+    "label": "Transfer and activation",
+    "epochUtc": "2029-03-15T16:31:41.507Z",
+    "metSeconds": 707501,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Crew and cargo transfer to Gateway, Lunar View is activated, and the lander is prepared."
+  },
+  {
+    "id": "phase-10",
+    "label": "Surface departure",
+    "epochUtc": "2029-03-16T17:05:39.195Z",
+    "metSeconds": 795939,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Two astronauts undock in the lander for a South Pole surface sortie."
+  },
+  {
+    "id": "phase-11",
+    "label": "Surface / orbital split operations",
+    "epochUtc": "2029-03-17T17:39:36.883Z",
+    "metSeconds": 884376,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Two astronauts work on the surface while Orion remains docked to Gateway for about six days in NRHO."
+  },
+  {
+    "id": "phase-12",
+    "label": "Surface ascent and redock",
+    "epochUtc": "2029-03-18T18:13:34.572Z",
+    "metSeconds": 972814,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "The lander lifts off from the Moon and redocks with Gateway."
+  },
+  {
+    "id": "phase-13",
+    "label": "Prepare for Earth return",
+    "epochUtc": "2029-03-19T18:47:32.260Z",
+    "metSeconds": 1061252,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Crew and samples transfer back for the Earth-return leg."
+  },
+  {
+    "id": "phase-14",
+    "label": "Departure from NRHO",
+    "epochUtc": "2029-03-20T19:21:29.948Z",
+    "metSeconds": 1149689,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Orion departs Gateway's NRHO at the optimal Earth-return point."
+  },
+  {
+    "id": "phase-15",
+    "label": "Return flyby and cruise",
+    "epochUtc": "2029-03-21T19:55:27.637Z",
+    "metSeconds": 1238127,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "The detailed public profile includes a lunar gravity-assist burn and homeward cruise."
+  },
+  {
+    "id": "phase-16",
+    "label": "Reentry and splashdown",
+    "epochUtc": "2029-03-22T20:29:25.325Z",
+    "metSeconds": 1326565,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived/provider-specific Artemis V phase reconstruction from older NASA procurement and ESA detail sources; timings are notional.",
+    "description": "Crew module separates, reenters Earth's atmosphere, and splashes down in the Pacific."
+  }
+]
