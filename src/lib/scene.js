@@ -13,8 +13,9 @@ import { kmToScene } from './units.js';
 
 const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
-const ORION_MARKER_KM = 420;
+const ORION_MARKER_KM = 560;
 const ORION_HALO_KM = 520;
+const ORION_MODEL_SCALE = 0.58;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
@@ -164,7 +165,7 @@ export function createScene(canvas) {
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
   _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xb0d9ff, transparent: true, opacity: 0.24 }));
-  _orionHalo.visible = true;
+  _orionHalo.visible = false;
   _scene.add(_orionHalo);
 
   _fullTrailGroup = new THREE.Group();
@@ -221,7 +222,7 @@ export function updateBodies(orionKm, moonKm, options = {}) {
     _orionHalo.position.set(sx, sy, sz);
     _updateOrionOrientation(_orionMarker.position);
     _orionMarker.visible = true;
-    _orionHalo.visible = true;
+    _orionHalo.visible = false;
   }
 
   const moonPosKm = moonKm || DEFAULT_MOON_POSITION_KM;
@@ -1015,7 +1016,7 @@ function _tryLoadOrionModel() {
     (gltf) => {
       if (!_orionMarker || !gltf?.scene) return;
       _orionModelRoot = gltf.scene;
-      _orionModelRoot.scale.setScalar(0.42);
+      _orionModelRoot.scale.setScalar(ORION_MODEL_SCALE);
       _orionModelRoot.rotation.set(0, 0, 0);
       _orionModelRoot.position.set(0, 0, 0);
       _orionMarker.add(_orionModelRoot);
