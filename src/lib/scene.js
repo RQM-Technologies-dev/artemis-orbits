@@ -42,6 +42,7 @@ const ORION_LOD_HIGH_DISTANCE = 34;
 const ORION_LOD_BALANCED_DISTANCE = 24;
 const ORION_LOD_LOW_DISTANCE = 16;
 const EVENT_CALLOUT_LIFT_KM = 1_000;
+const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 const EARTH_FRAME_CAMERA_OFFSET = new THREE.Vector3(0.95, 0.55, 1.05);
 const OUTBOUND_ROUTE_STYLE = { color: 0x8dcbff, opacity: 0.72 };
 const RETURN_ROUTE_STYLE = { color: 0xffbf98, opacity: 0.72 };
@@ -50,6 +51,7 @@ const RETURN_TRAVERSED_STYLE = { color: 0xffe4d1, opacity: 1 };
 const LIGHTING_UPDATE_INTERVAL_MS = 80;
 const AUTO_EXPOSURE_UPDATE_INTERVAL_MS = 50;
 const ORION_LOD_UPDATE_INTERVAL_MS = 120;
+const LOW_MODE_PIXEL_RATIO = 0.9;
 const BLOOM_DISABLED = { enabled: false, strength: 0, radius: 0, threshold: 1 };
 const BLOOM_STANDARD = { enabled: true, strength: 0.2, radius: 0.58, threshold: 0.82 };
 const BLOOM_BRIGHT = { enabled: true, strength: 0.24, radius: 0.6, threshold: 0.78 };
@@ -419,18 +421,21 @@ export function resizeScene(width, height) {
 export function renderScene() {
   if (!_renderer) return;
   const now = performance.now();
+  const maintenanceScale = _performanceEffectiveMode === 'low'
+    ? 1.8
+    : (_performanceEffectiveMode === 'balanced' ? 1.25 : 1);
   _tickCameraTransition();
   _tickFollowCamera();
   _tickEarthCloudRotation();
-  if ((now - _lastOrionLodUpdateNow) >= ORION_LOD_UPDATE_INTERVAL_MS) {
+  if ((now - _lastOrionLodUpdateNow) >= ORION_LOD_UPDATE_INTERVAL_MS * maintenanceScale) {
     _updateOrionLod();
     _lastOrionLodUpdateNow = now;
   }
-  if ((now - _lastLightingUpdateNow) >= LIGHTING_UPDATE_INTERVAL_MS) {
+  if ((now - _lastLightingUpdateNow) >= LIGHTING_UPDATE_INTERVAL_MS * maintenanceScale) {
     _updateLightingForBodies();
     _lastLightingUpdateNow = now;
   }
-  if ((now - _lastAutoExposureUpdateNow) >= AUTO_EXPOSURE_UPDATE_INTERVAL_MS) {
+  if ((now - _lastAutoExposureUpdateNow) >= AUTO_EXPOSURE_UPDATE_INTERVAL_MS * maintenanceScale) {
     _tickAutoExposure();
     _lastAutoExposureUpdateNow = now;
   }
@@ -445,15 +450,22 @@ export function setPerformanceMode(mode) {
   const normalized = ['auto', 'high', 'balanced', 'low'].includes(mode) ? mode : 'auto';
   let effective = normalized;
   const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const isPhoneFriendly = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && Boolean(window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY).matches);
   if (normalized === 'auto') {
-    const cores = Number.isFinite(nav.hardwareConcurrency) ? nav.hardwareConcurrency : 8;
-    const deviceMemory = Number.isFinite(nav.deviceMemory) ? nav.deviceMemory : 8;
-    effective = (cores <= 4 || deviceMemory <= 4) ? 'low' : 'balanced';
+    if (isPhoneFriendly) {
+      effective = 'low';
+    } else {
+      const cores = Number.isFinite(nav.hardwareConcurrency) ? nav.hardwareConcurrency : 8;
+      const deviceMemory = Number.isFinite(nav.deviceMemory) ? nav.deviceMemory : 8;
+      effective = (cores <= 4 || deviceMemory <= 4) ? 'low' : 'balanced';
+    }
   }
   const dpr = window.devicePixelRatio || 1;
   if (effective === 'high') _renderer.setPixelRatio(Math.min(dpr, 2));
   else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
-  else _renderer.setPixelRatio(1);
+  else _renderer.setPixelRatio(Math.min(dpr, LOW_MODE_PIXEL_RATIO));
   if (_starField) _starField.visible = effective !== 'low';
   if (_bloomPass) {
     const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
@@ -463,6 +475,10 @@ export function setPerformanceMode(mode) {
   _updateOrionLod();
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
   _composer?.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT);
+}
+
+export function getEffectivePerformanceMode() {
+  return _performanceEffectiveMode;
 }
 
 export function setFollowCameraEnabled(enabled) {

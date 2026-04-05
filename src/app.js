@@ -32,6 +32,7 @@ import {
   captureSceneImage,
   recenterFollowCamera,
   snapCameraToEventView,
+  getEffectivePerformanceMode,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -72,6 +73,9 @@ const TARGET_RENDER_FPS_BY_PERF_MODE = Object.freeze({
   high: 60,
   low: 30,
 });
+const FPS_ADAPT_DOWN_COOLDOWN_MS = 800;
+const FPS_ADAPT_UP_COOLDOWN_MS = 2400;
+const FPS_ADAPT_UP_HEADROOM_MS = 6;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -196,6 +200,8 @@ let _phoneFriendlyAutoplayKey = '';
 let _renderTargetFps = DEFAULT_TARGET_RENDER_FPS;
 let _renderFrameIntervalMs = 1000 / DEFAULT_TARGET_RENDER_FPS;
 let _lastRenderFrameNow = 0;
+let _lastFpsAdaptDownNow = 0;
+let _lastFpsAdaptUpNow = 0;
 
 bootstrapApp();
 
@@ -601,16 +607,42 @@ function clearPerformanceCaches() {
   _lastHudRefreshAt = 0;
   _lastUiRefreshAt = 0;
   _lastRenderFrameNow = 0;
+  _lastFpsAdaptDownNow = 0;
+  _lastFpsAdaptUpNow = 0;
 }
 
 function getTargetRenderFpsForMode(mode) {
-  const raw = TARGET_RENDER_FPS_BY_PERF_MODE[mode] ?? DEFAULT_TARGET_RENDER_FPS;
+  const normalizedMode = String(mode || '').trim();
+  const effectiveMode = normalizedMode === 'auto'
+    ? getEffectivePerformanceMode()
+    : normalizedMode;
+  const raw = TARGET_RENDER_FPS_BY_PERF_MODE[effectiveMode] ?? DEFAULT_TARGET_RENDER_FPS;
   return clamp(raw, MIN_RENDER_FPS, MAX_RENDER_FPS);
 }
 
 function updateRenderFrameBudget() {
   _renderTargetFps = getTargetRenderFpsForMode(state.ui.performanceMode);
   _renderFrameIntervalMs = 1000 / _renderTargetFps;
+}
+
+function adaptRenderFpsByFrameCost(now, frameCostMs) {
+  const minFrameInterval = 1000 / MIN_RENDER_FPS;
+  if (frameCostMs > (_renderFrameIntervalMs + 2) && _renderFrameIntervalMs < minFrameInterval) {
+    if ((now - _lastFpsAdaptDownNow) >= FPS_ADAPT_DOWN_COOLDOWN_MS) {
+      _renderFrameIntervalMs = Math.min(minFrameInterval, _renderFrameIntervalMs * 1.12);
+      _lastFpsAdaptDownNow = now;
+      _lastFpsAdaptUpNow = now;
+    }
+    return;
+  }
+
+  if ((frameCostMs + FPS_ADAPT_UP_HEADROOM_MS) < _renderFrameIntervalMs && _renderFrameIntervalMs > 0) {
+    const baselineMs = 1000 / getTargetRenderFpsForMode(state.ui.performanceMode);
+    if (_renderFrameIntervalMs > baselineMs && (now - _lastFpsAdaptUpNow) >= FPS_ADAPT_UP_COOLDOWN_MS) {
+      _renderFrameIntervalMs = Math.max(baselineMs, _renderFrameIntervalMs * 0.95);
+      _lastFpsAdaptUpNow = now;
+    }
+  }
 }
 
 function buildSpeedOptions() {
@@ -1730,6 +1762,7 @@ function startRafLoop() {
     const dtMs = Math.min(MAX_FRAME_DELTA_MS, Math.max(0, now - prev));
     prev = now;
     _lastRenderFrameNow = now;
+    const frameStartedAt = performance.now();
 
     if (state.ui.liveMode && hasMissionTimeline()) {
       const liveClockMs = clamp(Date.now(), state.missionStartMs, state.missionStopMs);
@@ -1757,6 +1790,7 @@ function startRafLoop() {
         syncZoomUiFromScene(false);
         _lastZoomUiUpdateNow = now;
       }
+      adaptRenderFpsByFrameCost(now, performance.now() - frameStartedAt);
     } catch (error) {
       handleStartupError('Render loop failure', error);
     }
