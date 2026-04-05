@@ -3,8 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NASA Artemis Orbits</title>
+  <title>NASA Artemis Orbits - Interactive 3D Artemis Mission Viewer</title>
+  <meta name="description" content="Explore NASA Artemis mission trajectories in an interactive 3D viewer with Artemis I and Artemis II timelines, mission events, Moon vectors, and camera flythrough controls." />
+  <meta name="keywords" content="NASA Artemis, Artemis I, Artemis II, Moon mission, spacecraft trajectory, orbital visualization, mission timeline, 3D space viewer" />
+  <meta name="author" content="RQM Technologies" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="theme-color" content="#071226" />
+  <link rel="canonical" href="https://artemis.rqmstudio.tech/" />
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="https://artemis.rqmstudio.tech/sitemap.xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NASA Artemis Orbits" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:url" content="https://artemis.rqmstudio.tech/" />
+  <meta property="og:title" content="NASA Artemis Orbits - Interactive 3D Artemis Mission Viewer" />
+  <meta property="og:description" content="Follow Artemis mission timelines and trajectories in an interactive 3D scene built from normalized official mission data." />
+  <meta property="og:image" content="https://artemis.rqmstudio.tech/og-image.svg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="NASA Artemis Orbits interactive 3D mission viewer preview" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="NASA Artemis Orbits - Interactive 3D Artemis Mission Viewer" />
+  <meta name="twitter:description" content="Explore Artemis mission trajectories with mission time controls, event context, and camera presets in 3D." />
+  <meta name="twitter:image" content="https://artemis.rqmstudio.tech/og-image.svg" />
   <link rel="stylesheet" href="./styles.css" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "NASA Artemis Orbits",
+          "url": "https://artemis.rqmstudio.tech/",
+          "description": "Interactive Artemis mission trajectory viewer using normalized NASA mission data and lunar vectors.",
+          "inLanguage": "en",
+          "publisher": {
+            "@type": "Organization",
+            "name": "RQM Technologies",
+            "url": "https://www.rqmtechnologies.com/"
+          },
+          "about": [
+            { "@type": "Thing", "name": "NASA Artemis program" },
+            { "@type": "Thing", "name": "Space mission trajectories" },
+            { "@type": "Thing", "name": "Lunar missions" }
+          ]
+        },
+        {
+          "@type": "WebApplication",
+          "name": "NASA Artemis Orbits",
+          "url": "https://artemis.rqmstudio.tech/",
+          "applicationCategory": "EducationalApplication",
+          "operatingSystem": "Any",
+          "isAccessibleForFree": true,
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "description": "Interactive 3D visualization of Artemis mission trajectories, mission events, and timeline playback."
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is NASA Artemis Orbits?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "NASA Artemis Orbits is an interactive 3D mission viewer for Artemis trajectories, mission events, and timeline playback."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Where does the trajectory data come from?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Trajectory visualizations are based on normalized mission data sourced from official NASA OEM releases and moon vectors from JPL Horizons."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How can I share a specific moment in a mission?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Use the share controls to copy or post the current URL. The link preserves mission and timeline state so others can open the same view."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  </script>
   <script type="importmap">
     {
       "imports": {
@@ -103,17 +192,6 @@
         </div>
 
         <div class="controls-row">
-          <button id="btn-prev-event" class="btn btn-sm">⟵ Prev event</button>
-          <button id="btn-next-event" class="btn btn-sm">Next event ⟶</button>
-        </div>
-
-        <div class="controls-row">
-          <button id="btn-minus-1h" class="btn btn-sm">−1 h</button>
-          <button id="btn-plus-1h" class="btn btn-sm">+1 h</button>
-          <button id="btn-minus-1d" class="btn btn-sm">−1 d</button>
-          <button id="btn-plus-1d" class="btn btn-sm">+1 d</button>
-        </div>
-        <div class="controls-row">
           <button id="btn-live" class="btn btn-sm">Live: Off</button>
         </div>
 
@@ -137,6 +215,32 @@
 
         <div class="controls-row">
           <button id="btn-copy-link" class="btn btn-sm">Copy share link</button>
+        </div>
+      </div>
+
+      <div class="card" id="share-card">
+        <h3>Share Artemis Orbits</h3>
+        <p class="hint-text">Help other Artemis fans find this viewer.</p>
+        <div class="controls-row">
+          <button id="btn-share-x" class="btn btn-sm">Share on X</button>
+          <button id="btn-share-reddit" class="btn btn-sm">Share on Reddit</button>
+        </div>
+        <div class="controls-row">
+          <button id="btn-share-linkedin" class="btn btn-sm">Share on LinkedIn</button>
+          <button id="btn-share-email" class="btn btn-sm">Share via Email</button>
+        </div>
+        <p class="hint-text">Embed this exact mission view on blogs, class pages, or documentation.</p>
+        <div class="embed-tools">
+          <label for="embed-link-output" class="ctrl-label">Link snippet</label>
+          <textarea id="embed-link-output" class="embed-snippet-output" rows="2" readonly aria-label="Embed link snippet"></textarea>
+          <div class="controls-row">
+            <button id="btn-copy-embed-link" class="btn btn-sm">Copy link snippet</button>
+          </div>
+          <label for="embed-iframe-output" class="ctrl-label">Iframe snippet</label>
+          <textarea id="embed-iframe-output" class="embed-snippet-output" rows="4" readonly aria-label="Embed iframe snippet"></textarea>
+          <div class="controls-row">
+            <button id="btn-copy-embed-iframe" class="btn btn-sm">Copy iframe snippet</button>
+          </div>
         </div>
       </div>
 
@@ -205,6 +309,22 @@
       <div class="card" id="annotations-card">
         <h3>Mission annotations</h3>
         <ul id="mission-annotations" class="annotation-list"></ul>
+      </div>
+
+      <div class="card" id="faq-card">
+        <h3>FAQ</h3>
+        <details class="faq-item">
+          <summary>What is NASA Artemis Orbits?</summary>
+          <p class="faq-answer">An interactive 3D viewer for Artemis mission trajectories, event context, and mission-time playback controls.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Where does the mission data come from?</summary>
+          <p class="faq-answer">From normalized official NASA OEM trajectory data and moon vectors sourced from JPL Horizons.</p>
+        </details>
+        <details class="faq-item">
+          <summary>How do I share a specific mission moment?</summary>
+          <p class="faq-answer">Use the share controls to copy/post the current URL. It retains mission, camera, and timeline context in query params.</p>
+        </details>
       </div>
 
       <div class="card artemis3-card hidden" id="artemis3-card" aria-live="polite">

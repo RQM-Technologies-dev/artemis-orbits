@@ -48,7 +48,7 @@ export const MISSIONS = [
     id: 'artemis-3',
     displayName: 'Artemis III',
     status: 'official-current',
-    enabled: true,
+    enabled: false,
     officialPageUrl:
       'https://www.nasa.gov/missions/artemis/artemis-iii/',
     officialZipUrl:  null,

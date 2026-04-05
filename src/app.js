@@ -204,12 +204,12 @@ function getDomRefs() {
     btnReset: pick('btn-reset'),
     btnJumpStart: pick('btn-jump-start'),
     btnJumpEnd: pick('btn-jump-end'),
-    btnPrevEvent: pick('btn-prev-event'),
-    btnNextEvent: pick('btn-next-event'),
-    btnMinus1h: pick('btn-minus-1h'),
-    btnPlus1h: pick('btn-plus-1h'),
-    btnMinus1d: pick('btn-minus-1d'),
-    btnPlus1d: pick('btn-plus-1d'),
+    btnPrevEvent: pickOptional('btn-prev-event'),
+    btnNextEvent: pickOptional('btn-next-event'),
+    btnMinus1h: pickOptional('btn-minus-1h'),
+    btnPlus1h: pickOptional('btn-plus-1h'),
+    btnMinus1d: pickOptional('btn-minus-1d'),
+    btnPlus1d: pickOptional('btn-plus-1d'),
     btnLive: pickOptional('btn-live'),
     speedSelect: pick('speed-select'),
     timelineSlider: pick('timeline-slider'),
@@ -230,6 +230,14 @@ function getDomRefs() {
     visualPresetSelect: pick('visual-preset-select'),
     perfModeSelect: pick('perf-select'),
     btnCopyLink: pick('btn-copy-link'),
+    btnShareX: pickOptional('btn-share-x'),
+    btnShareReddit: pickOptional('btn-share-reddit'),
+    btnShareLinkedin: pickOptional('btn-share-linkedin'),
+    btnShareEmail: pickOptional('btn-share-email'),
+    embedLinkOutput: pickOptional('embed-link-output'),
+    embedIframeOutput: pickOptional('embed-iframe-output'),
+    btnCopyEmbedLink: pickOptional('btn-copy-embed-link'),
+    btnCopyEmbedIframe: pickOptional('btn-copy-embed-iframe'),
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
     btnCapture: pickOptional('btn-export-image'),
@@ -898,12 +906,12 @@ function wireUiEvents() {
 
   refs.btnJumpStart.addEventListener('click', () => jumpToMissionStart());
   refs.btnJumpEnd.addEventListener('click', () => jumpToMissionEnd());
-  refs.btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
-  refs.btnNextEvent.addEventListener('click', () => jumpToNextEvent());
-  refs.btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
-  refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
-  refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
-  refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
+  if (refs.btnPrevEvent) refs.btnPrevEvent.addEventListener('click', () => jumpToPreviousEvent());
+  if (refs.btnNextEvent) refs.btnNextEvent.addEventListener('click', () => jumpToNextEvent());
+  if (refs.btnMinus1h) refs.btnMinus1h.addEventListener('click', () => stepTime(-MS_PER_H));
+  if (refs.btnPlus1h) refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
+  if (refs.btnMinus1d) refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
+  if (refs.btnPlus1d) refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
   if (refs.btnLive) {
     refs.btnLive.addEventListener('click', () => {
       setLiveModeUi(!state.ui.liveMode);
@@ -1035,6 +1043,8 @@ function wireUiEvents() {
       setSidebarStatus('Unable to copy link in this browser');
     }
   });
+  wireSocialShareButtons();
+  wireEmbedTools();
 
   refs.timelineSlider.addEventListener('mousedown', () => { state.scrubbing = true; });
   refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
@@ -1050,6 +1060,86 @@ function wireUiEvents() {
   window.addEventListener('mouseup', () => { state.scrubbing = false; });
   window.addEventListener('touchend', () => { state.scrubbing = false; });
   window.addEventListener('keydown', onKeyboardShortcuts);
+}
+
+function wireSocialShareButtons() {
+  const shareText = 'Explore NASA Artemis mission trajectories in this interactive 3D viewer';
+  const shareSubject = 'Explore NASA Artemis Orbits';
+  const openShareWindow = (href) => {
+    const popup = window.open(href, '_blank', 'noopener,noreferrer,width=760,height=620');
+    if (!popup) window.open(href, '_blank', 'noopener,noreferrer');
+  };
+  const getShareState = () => {
+    const currentUrl = window.location.href;
+    return {
+      currentUrl,
+      encodedUrl: encodeURIComponent(currentUrl),
+      encodedText: encodeURIComponent(shareText),
+      encodedSubject: encodeURIComponent(shareSubject),
+    };
+  };
+
+  if (refs.btnShareX) {
+    refs.btnShareX.addEventListener('click', () => {
+      const { encodedUrl, encodedText } = getShareState();
+      openShareWindow(`https://x.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`);
+      setSidebarStatus('Opened X share composer');
+    });
+  }
+  if (refs.btnShareReddit) {
+    refs.btnShareReddit.addEventListener('click', () => {
+      const { encodedUrl, encodedText } = getShareState();
+      openShareWindow(`https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedText}`);
+      setSidebarStatus('Opened Reddit share composer');
+    });
+  }
+  if (refs.btnShareLinkedin) {
+    refs.btnShareLinkedin.addEventListener('click', () => {
+      const { encodedUrl } = getShareState();
+      openShareWindow(`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`);
+      setSidebarStatus('Opened LinkedIn share composer');
+    });
+  }
+  if (refs.btnShareEmail) {
+    refs.btnShareEmail.addEventListener('click', () => {
+      const { currentUrl, encodedSubject } = getShareState();
+      const body = encodeURIComponent(`${shareText}\n\n${currentUrl}`);
+      window.location.href = `mailto:?subject=${encodedSubject}&body=${body}`;
+      setSidebarStatus('Opened email share draft');
+    });
+  }
+}
+
+function wireEmbedTools() {
+  if (!refs.embedIframeOutput || !refs.embedLinkOutput) return;
+  updateEmbedSnippets();
+
+  refs.btnCopyEmbedIframe?.addEventListener('click', async () => {
+    updateEmbedSnippets();
+    try {
+      await navigator.clipboard.writeText(refs.embedIframeOutput.value);
+      setSidebarStatus('Embed code copied');
+    } catch {
+      setSidebarStatus('Unable to copy embed code in this browser');
+    }
+  });
+
+  refs.btnCopyEmbedLink?.addEventListener('click', async () => {
+    updateEmbedSnippets();
+    try {
+      await navigator.clipboard.writeText(refs.embedLinkOutput.value);
+      setSidebarStatus('Embed link copied');
+    } catch {
+      setSidebarStatus('Unable to copy embed link in this browser');
+    }
+  });
+}
+
+function updateEmbedSnippets() {
+  if (!refs?.embedIframeOutput || !refs?.embedLinkOutput) return;
+  const url = window.location.href;
+  refs.embedLinkOutput.value = `<a href="${url}" target="_blank" rel="noopener noreferrer">Explore NASA Artemis Orbits</a>`;
+  refs.embedIframeOutput.value = `<iframe src="${url}" width="960" height="540" style="border:1px solid #1e2a40;border-radius:8px;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen title="NASA Artemis Orbits"></iframe>`;
 }
 
 function setActiveTab(id) {
@@ -1655,6 +1745,7 @@ function syncUrlState() {
   if (_lastSyncedUrl !== next) {
     history.replaceState(null, '', next);
     _lastSyncedUrl = next;
+    updateEmbedSnippets();
   }
 }
 
