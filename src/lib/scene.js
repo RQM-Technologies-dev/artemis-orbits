@@ -19,6 +19,10 @@ const EARTH_CLOUD_LAYER_SCALE = 1.012;
 const ORION_MARKER_KM = 760;
 const ORION_HALO_KM = 520;
 const ORION_MODEL_SCALE = 0.78;
+const ORION_USA_DECAL_WIDTH_SCALE = 0.96;
+const ORION_USA_DECAL_HEIGHT_SCALE = 0.3;
+const ORION_USA_DECAL_OFFSET_SCALE = 1.03;
+const ORION_USA_DECAL_Y_OFFSET_SCALE = 0.14;
 const SUN_GLOW_CORE_SCALE = 3.4;
 const SUN_GLOW_MID_SCALE = 5.8;
 const SUN_GLOW_OUTER_SCALE = 8.2;
@@ -107,6 +111,7 @@ let _sunGlowCoreMaterial = null;
 let _sunGlowMidMaterial = null;
 let _sunGlowOuterMaterial = null;
 let _sunGlowFlareMaterial = null;
+let _orionUsaDecalTexture = null;
 let _pointerDown = null;
 let _sceneLoadSmoothing = false;
 let _lastSceneDynamicUpdateMs = 0;
@@ -907,16 +912,16 @@ function _makeOrionCapsule(radius) {
   const engineRadius = radius * 0.17;
 
   _orionBodyMaterial = new THREE.MeshPhongMaterial({
-    color: 0xdce3ee,
-    emissive: 0x1f2734,
-    shininess: 40,
-    specular: 0x98a5b8,
+    color: 0xeaf1fb,
+    emissive: 0x2a3649,
+    shininess: 52,
+    specular: 0xc3d2e6,
   });
   _orionNoseMaterial = new THREE.MeshPhongMaterial({
-    color: 0xeaf0f7,
-    emissive: 0x1d2330,
-    shininess: 48,
-    specular: 0xa8b4c5,
+    color: 0xf6f9ff,
+    emissive: 0x2d394b,
+    shininess: 56,
+    specular: 0xd1dded,
   });
   _orionShieldMaterial = new THREE.MeshPhongMaterial({
     color: 0x5a4333,
@@ -930,10 +935,10 @@ function _makeOrionCapsule(radius) {
     opacity: 0.55,
   });
   _orionServiceMaterial = new THREE.MeshPhongMaterial({
-    color: 0xa2acbf,
-    emissive: 0x1a2130,
-    shininess: 22,
-    specular: 0x667087,
+    color: 0xb6c2d6,
+    emissive: 0x232d40,
+    shininess: 28,
+    specular: 0x7b88a3,
   });
   _orionPanelMaterial = new THREE.MeshPhongMaterial({
     color: 0x4f6da6,
@@ -960,6 +965,8 @@ function _makeOrionCapsule(radius) {
     _orionBodyMaterial,
   );
   stack.add(crewBody);
+  const usaDecal = _makeOrionUsaDecal(radius, crewRadiusBottom, crewHeight);
+  if (usaDecal) crewBody.add(usaDecal);
 
   const nose = new THREE.Mesh(
     new THREE.ConeGeometry(crewRadiusTop, noseHeight, radialSegments),
@@ -1039,10 +1046,10 @@ function _makeOrionCapsule(radius) {
 
   _orionDetailGroup = stack;
   _orionSimpleMaterial = new THREE.MeshPhongMaterial({
-    color: 0xe3e8f2,
-    emissive: 0x1a2230,
-    shininess: 30,
-    specular: 0x8e9db5,
+    color: 0xf0f4fb,
+    emissive: 0x273246,
+    shininess: 42,
+    specular: 0xb2c2da,
   });
   _orionSimpleMesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(radius * 0.56, radius * 0.78, 8, 14),
@@ -1075,22 +1082,22 @@ function _makeOrionCapsule(radius) {
 
 function _applyOrionCapsuleVisual(orionColorHex) {
   const accent = new THREE.Color(orionColorHex);
-  const bodyBase = new THREE.Color(0xdce3ee);
-  const noseBase = new THREE.Color(0xeaf0f7);
-  const serviceBase = new THREE.Color(0xa2acbf);
+  const bodyBase = new THREE.Color(0xeaf1fb);
+  const noseBase = new THREE.Color(0xf6f9ff);
+  const serviceBase = new THREE.Color(0xb6c2d6);
   const panelBase = new THREE.Color(0x4f6da6);
   const trussBase = new THREE.Color(0x8894a9);
   if (_orionBodyMaterial) {
-    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.18);
-    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.085);
+    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.14);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.12);
   }
   if (_orionNoseMaterial) {
-    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.1);
-    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.06);
+    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.08);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.085);
   }
   if (_orionServiceMaterial) {
-    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.15);
-    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.06);
+    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.12);
+    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.08);
   }
   if (_orionPanelMaterial) {
     _orionPanelMaterial.color.copy(panelBase).lerp(accent, 0.08);
@@ -1102,10 +1109,62 @@ function _applyOrionCapsuleVisual(orionColorHex) {
   }
   if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
   if (_orionSimpleMaterial) {
-    _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.16);
-    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.075);
+    _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.14);
+    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.1);
   }
   if (_orionPlumeMaterial) _orionPlumeMaterial.color.copy(accent).lerp(new THREE.Color(0x8fd4ff), 0.55);
+}
+
+function _makeOrionUsaDecal(radius, bodyRadius, bodyHeight) {
+  if (!_orionUsaDecalTexture) _orionUsaDecalTexture = _makeOrionUsaDecalTexture();
+  if (!_orionUsaDecalTexture) return null;
+  const decal = new THREE.Mesh(
+    new THREE.PlaneGeometry(radius * ORION_USA_DECAL_WIDTH_SCALE, radius * ORION_USA_DECAL_HEIGHT_SCALE),
+    new THREE.MeshBasicMaterial({
+      map: _orionUsaDecalTexture,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+  );
+  decal.position.set(
+    bodyRadius * ORION_USA_DECAL_OFFSET_SCALE,
+    bodyHeight * ORION_USA_DECAL_Y_OFFSET_SCALE,
+    0,
+  );
+  decal.rotation.y = -Math.PI / 2;
+  return decal;
+}
+
+function _makeOrionUsaDecalTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 220px "Arial Black", "Segoe UI", sans-serif';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.strokeStyle = 'rgba(8, 14, 28, 0.9)';
+  ctx.lineWidth = 22;
+  ctx.strokeText('USA', canvas.width * 0.5, canvas.height * 0.54);
+  ctx.fillStyle = '#f6fbff';
+  ctx.fillText('USA', canvas.width * 0.5, canvas.height * 0.54);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = Math.min(8, _renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function getSafeCanvasSize(canvas) {
