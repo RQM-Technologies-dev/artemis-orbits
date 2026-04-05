@@ -31,17 +31,17 @@
   </header>
 
   <nav id="mission-nav" aria-label="Mission navigation">
-    <section id="mission-strip" aria-live="polite">
-      <h2 id="sb-mission-title">—</h2>
-      <p id="sb-mission-summary" class="muted">—</p>
-      <p id="sb-status-msg" class="status-msg">—</p>
-    </section>
     <div id="mission-tabs" role="tablist" aria-label="Mission selector"></div>
   </nav>
 
   <main id="app-main">
     <section id="scene-panel" aria-label="3D orbit viewer">
       <canvas id="three-canvas"></canvas>
+      <section id="mission-strip" aria-live="polite">
+        <h2 id="sb-mission-title">—</h2>
+        <p id="sb-mission-summary" class="muted">—</p>
+        <p id="sb-status-msg" class="status-msg">—</p>
+      </section>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
       <div id="scene-telemetry" aria-live="polite">
         <div class="scene-phase" id="sb-phase">Phase: —</div>
