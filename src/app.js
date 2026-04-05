@@ -16,6 +16,7 @@ import {
   resetSceneDynamicState,
   showFallbackBodies,
   setPerformanceMode,
+  setSceneLoadSmoothingMode,
   setFollowCameraEnabled,
   setFollowCameraMode,
   setEventMarkerClickHandler,
@@ -64,6 +65,7 @@ const PLAYING_HEAVY_UI_UPDATE_INTERVAL_MS = 180;
 const PLAYING_TRAVERSED_TRAIL_UPDATE_INTERVAL_MS = 220;
 const PLAYING_URL_SYNC_INTERVAL_MS = 1200;
 const ZOOM_UI_UPDATE_INTERVAL_MS = 80;
+const BACKGROUND_WARMUP_FRAMES = 10;
 const MIN_RENDER_FPS = 24;
 const MAX_RENDER_FPS = 60;
 const DEFAULT_TARGET_RENDER_FPS = 48;
@@ -127,6 +129,7 @@ const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
 });
 const HUD_REFRESH_INTERVAL_MS = 200;
 const UI_REFRESH_INTERVAL_MS = 66;
+const DEFERRED_SCENE_HYDRATION_TIMEOUT_MS = 48;
 const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
@@ -136,7 +139,9 @@ function getDefaultFollowModeForMission(missionId) {
 const state = {
   activeMissionId: ACTIVE_MISSION_ID,
   missionData: null,
+  missionBounds: [],
   moonData: null,
+  moonBounds: [],
   events: [],
   missionPhases: [],
   eventMarkers: [],
@@ -144,8 +149,9 @@ const state = {
   missionStopMs: 0,
   currentMs: 0,
   flatSamples: [],
-  missionBounds: [],
-  moonBounds: [],
+  sceneHydrated: false,
+  sceneWarmReady: false,
+  backgroundWarmupRemaining: 0,
   playing: false,
   scrubbing: false,
   diagnostics: {
@@ -197,6 +203,7 @@ let _lastHudRefreshAt = 0;
 let _lastUiRefreshAt = 0;
 let _phoneFriendlyMql = null;
 let _phoneFriendlyAutoplayKey = '';
+let _sceneHydrationToken = 0;
 let _renderTargetFps = DEFAULT_TARGET_RENDER_FPS;
 let _renderFrameIntervalMs = 1000 / DEFAULT_TARGET_RENDER_FPS;
 let _lastRenderFrameNow = 0;
@@ -227,6 +234,7 @@ function bootstrapApp() {
     buildPerformanceOptions();
     buildVisualPresetOptions();
     buildTabs();
+    initSidebarCollapsibles();
     wireUiEvents();
     parseInitialUiStateFromUrl();
     updateRenderFrameBudget();
@@ -276,6 +284,12 @@ function maybeStartPhoneFriendlyPlayback() {
   setSceneStartMissionButtonVisible(false);
   _phoneFriendlyAutoplayKey = autoplayKey;
   updateScene();
+}
+
+function maybeStartBackgroundWarmupFrames() {
+  if (!hasMissionTimeline()) return;
+  // Warm rendering paths while idle so pressing Play starts immediately.
+  state.backgroundWarmupRemaining = Math.max(state.backgroundWarmupRemaining, BACKGROUND_WARMUP_FRAMES);
 }
 
 function getDomRefs() {
@@ -386,6 +400,56 @@ function getDomRefs() {
     a5SourcesMoonbase: pickOptional('a5-sources-moonbase'),
     a5SourcesDrift: pickOptional('a5-sources-drift'),
   };
+}
+
+function getSidebarCardTitle(card) {
+  if (!card) return 'Section';
+  const explicit = String(card.dataset.collapseLabel || '').trim();
+  if (explicit) return explicit;
+  const nestedHeading = card.querySelector('h2, h3');
+  if (nestedHeading?.textContent) return nestedHeading.textContent.trim();
+  if (!card.id) return 'Section';
+  return card.id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function initSidebarCollapsibles() {
+  const cards = Array.from(document.querySelectorAll('#sidebar .card'));
+  for (const card of cards) {
+    if (card.id === 'playback-card') continue;
+    if (card.dataset.collapsibleInit === '1') continue;
+    card.dataset.collapsibleInit = '1';
+
+    const directHeading = card.querySelector(':scope > h2, :scope > h3');
+    const label = (directHeading?.textContent || getSidebarCardTitle(card)).trim() || 'Section';
+    if (directHeading) directHeading.remove();
+
+    const content = document.createElement('div');
+    content.className = 'card-collapse-content';
+    const contentId = `${card.id || 'sidebar-card'}-content`;
+    content.id = contentId;
+    while (card.firstChild) content.appendChild(card.firstChild);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'card-collapse-toggle';
+    toggle.textContent = label;
+    toggle.setAttribute('aria-controls', contentId);
+    toggle.setAttribute('aria-expanded', 'false');
+
+    card.classList.add('card-collapsible', 'card-collapsed');
+    content.hidden = true;
+
+    toggle.addEventListener('click', () => {
+      const collapsed = card.classList.toggle('card-collapsed');
+      content.hidden = collapsed;
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+
+    card.appendChild(toggle);
+    card.appendChild(content);
+  }
 }
 
 function getEventTypeClass(type) {
@@ -1627,6 +1691,7 @@ async function selectMission(id) {
 
   setActiveTab(id);
   resetLoadedMissionState();
+  const sceneHydrationToken = _sceneHydrationToken;
 
   refs.sbTitle.textContent = mission.displayName;
   refs.sbSummary.textContent = mission.summary;
@@ -1636,52 +1701,59 @@ async function selectMission(id) {
   if (!mission.enabled) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
     setSidebarStatus('Mission JSON missing');
+    setSceneLoadSmoothingMode(false);
     renderArtemis3Content();
     renderArtemis5Content();
     return;
   }
 
   setSidebarStatus('Fallback scene active — waiting for mission data');
-  if (mission.id === 'artemis-3') {
-    try {
-      await loadArtemis3Model();
-    } catch (error) {
-      setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  if (mission.id === 'artemis-5') {
-    try {
-      await loadArtemis5Model();
-    } catch (error) {
-      setErrorMessage(`Artemis V model load failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
+  state.sceneHydrated = false;
+  state.sceneWarmReady = false;
+  state.backgroundWarmupRemaining = 0;
+  setSceneLoadSmoothingMode(true);
   const dataPaths = getMissionDataPaths(mission);
+  const modelPromise = mission.id === 'artemis-3'
+    ? loadArtemis3Model().catch((error) => {
+      setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    })
+    : mission.id === 'artemis-5'
+      ? loadArtemis5Model().catch((error) => {
+        setErrorMessage(`Artemis V model load failed: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      })
+      : Promise.resolve(null);
 
-  try {
-    state.missionData = await loadMissionData(dataPaths.normalizedPath);
-    state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
-  } catch (error) {
-    handleStartupError('Mission JSON load failed', error);
-    return;
-  }
+  const moonPromise = loadMissionData(dataPaths.moonPath).catch((error) => {
+    setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
+  const eventsPromise = loadJson(dataPaths.eventsPath).catch((error) => {
+    setErrorMessage(`Event JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
 
   let loadedEvents = null;
   try {
-    state.moonData = await loadMissionData(dataPaths.moonPath);
-    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
-  } catch (error) {
-    setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  try {
-    loadedEvents = await loadJson(dataPaths.eventsPath);
+    const [, missionData, moonData, eventsData] = await Promise.all([
+      modelPromise,
+      loadMissionData(dataPaths.normalizedPath),
+      moonPromise,
+      eventsPromise,
+    ]);
+    if (sceneHydrationToken !== _sceneHydrationToken) return;
+    state.missionData = missionData;
+    state.moonData = moonData;
+    loadedEvents = eventsData;
     state.events = sortEvents(loadedEvents);
+    state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
+    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
     state.diagnostics.eventsLoaded = Boolean(loadedEvents);
   } catch (error) {
-    setErrorMessage(`Event JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
-    state.events = [];
-    state.diagnostics.eventsLoaded = false;
+    setSceneLoadSmoothingMode(false);
+    handleStartupError('Mission JSON load failed', error);
+    return;
   } finally {
     updateDebugOverlay();
   }
@@ -1689,6 +1761,7 @@ async function selectMission(id) {
   if (!state.missionData) {
     showOverlay('Mission JSON missing. Fallback scene remains active while data is unavailable.');
     setSidebarStatus('Mission JSON missing');
+    setSceneLoadSmoothingMode(false);
     showFallbackBodies();
     focusCameraPreset('fallback-overview');
     return;
@@ -1712,26 +1785,18 @@ async function selectMission(id) {
   setEventVoiceEnabledUi(state.ui.eventVoiceEnabled, { sync: false });
   setEventVoiceVolumeUi(state.ui.eventVoiceVolume, { sync: false });
 
-  setMissionTrailsBySegment(state.missionData.segments || []);
-  setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
-  try {
-    buildEventMarkers();
-  } catch (error) {
-    handleStartupError('Event marker build failed', error);
-    return;
-  }
-  refreshTimelineEventTicks();
   try {
     applyCameraPreset(state.ui.cameraPreset, { sync: false });
   } catch (error) {
     handleStartupError('Camera setup failed', error);
   }
-  updateScene();
+  updateScene({ forceHeavy: true });
   refreshMissionAnnotations(mission);
   renderArtemis3Content();
   renderArtemis5Content();
   applyInitialTimeOverrideFromUrl();
   if (state.ui.liveMode) setLiveModeUi(true, { sync: false, status: false });
+  scheduleDeferredSceneHydration(sceneHydrationToken);
   syncUrlState();
 
   const artemis3Profile = getArtemis3ProfileConfig(mission, state.ui.artemis3Mode);
@@ -1741,11 +1806,36 @@ async function selectMission(id) {
     : mission.id === 'artemis-5'
       ? `Mission scene active — Artemis V (${artemis5Profile?.displayName || 'Current mission'})`
       : `Mission scene active — ${mission.displayName}`;
-  setSidebarStatus(missionLabel);
+  setSidebarStatus(`${missionLabel} (warming in background…)`);
+  maybeStartBackgroundWarmupFrames();
   maybeStartPhoneFriendlyPlayback();
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
   if (!loadedEvents) setErrorMessage('Event JSON missing; continuing without event markers.');
+}
+
+function scheduleDeferredSceneHydration(token) {
+  const run = () => {
+    if (token !== _sceneHydrationToken) return;
+    try {
+      setMissionTrailsBySegment(state.missionData?.segments || []);
+      setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
+      buildEventMarkers();
+      refreshTimelineEventTicks();
+      state.sceneHydrated = true;
+      setSceneLoadSmoothingMode(false);
+      updateScene({ forceHeavy: true });
+      maybeStartBackgroundWarmupFrames();
+    } catch (error) {
+      setSceneLoadSmoothingMode(false);
+      handleStartupError('Scene hydration failed', error);
+    }
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: DEFERRED_SCENE_HYDRATION_TIMEOUT_MS });
+    return;
+  }
+  window.setTimeout(run, DEFERRED_SCENE_HYDRATION_TIMEOUT_MS);
 }
 
 function startRafLoop() {
@@ -1782,6 +1872,14 @@ function startRafLoop() {
       }
       state.currentMs = clamp(state.currentMs, state.missionStartMs, state.missionStopMs);
       updateScene({ now });
+    }
+    if (!state.playing && state.sceneHydrated && state.backgroundWarmupRemaining > 0) {
+      updateScene({ now, forceHeavy: true });
+      state.backgroundWarmupRemaining -= 1;
+      if (state.backgroundWarmupRemaining <= 0 && !state.sceneWarmReady) {
+        state.sceneWarmReady = true;
+        setSidebarStatus('Scene loaded and ready — press Play');
+      }
     }
 
     try {
@@ -1855,7 +1953,7 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
   updateBodies(orionState?.positionKm || null, moonState?.positionKm || null, {
     orionVelocityKmS: orionState?.velocityKmS || null,
   });
-  if (shouldUpdateTrail) {
+  if (state.sceneHydrated && shouldUpdateTrail) {
     setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
     _lastTrailUpdateNow = now;
   }
@@ -1931,15 +2029,19 @@ function refreshTimelineEventTicks() {
 }
 
 function resetLoadedMissionState() {
+  _sceneHydrationToken += 1;
   clearPerformanceCaches();
   state.missionData = null;
+  state.missionBounds = [];
   state.moonData = null;
+  state.moonBounds = [];
   state.events = [];
   state.missionPhases = [];
   state.eventMarkers = [];
   state.flatSamples = [];
-  state.missionBounds = [];
-  state.moonBounds = [];
+  state.sceneHydrated = false;
+  state.sceneWarmReady = false;
+  state.backgroundWarmupRemaining = 0;
   state.missionStartMs = 0;
   state.missionStopMs = 0;
   state.currentMs = 0;
@@ -1956,6 +2058,7 @@ function resetLoadedMissionState() {
   _lastTrailUpdateNow = 0;
   _lastUrlSyncNow = 0;
   _lastZoomUiUpdateNow = 0;
+  setSceneLoadSmoothingMode(false);
 
   refs.timelineSlider.value = refs.timelineSlider.min;
   refs.sbUtc.textContent = '—';

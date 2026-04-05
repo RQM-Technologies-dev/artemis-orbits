@@ -19,6 +19,10 @@ const EARTH_CLOUD_LAYER_SCALE = 1.012;
 const ORION_MARKER_KM = 760;
 const ORION_HALO_KM = 520;
 const ORION_MODEL_SCALE = 0.78;
+const ORION_USA_DECAL_WIDTH_SCALE = 0.96;
+const ORION_USA_DECAL_HEIGHT_SCALE = 0.3;
+const ORION_USA_DECAL_OFFSET_SCALE = 1.03;
+const ORION_USA_DECAL_Y_OFFSET_SCALE = 0.14;
 const SUN_GLOW_CORE_SCALE = 3.4;
 const SUN_GLOW_MID_SCALE = 5.8;
 const SUN_GLOW_OUTER_SCALE = 8.2;
@@ -34,8 +38,11 @@ const DEFAULT_TONE_EXPOSURE = 1.24;
 const AUTO_EXPOSURE_MIN = 1.1;
 const AUTO_EXPOSURE_MAX = 1.6;
 const AUTO_EXPOSURE_SMOOTHING = 0.08;
+const SCENE_DYNAMIC_UPDATE_INTERVAL_MS = 33;
+const SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS = 75;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
+const FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC = 8.5;
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
 const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
 const ORION_LOD_HIGH_DISTANCE = 34;
@@ -101,6 +108,7 @@ let _bloomPass = null;
 let _cameraTransition = null;
 let _followCameraEnabled = false;
 let _followCameraDistanceScale = 1;
+let _controlsUserInteracting = false;
 let _sceneVisualPreset = 'standard';
 let _visualPresetConfig = null;
 let _eventMarkerClickHandler = null;
@@ -111,7 +119,10 @@ let _sunGlowCoreMaterial = null;
 let _sunGlowMidMaterial = null;
 let _sunGlowOuterMaterial = null;
 let _sunGlowFlareMaterial = null;
+let _orionUsaDecalTexture = null;
 let _pointerDown = null;
+let _sceneLoadSmoothing = false;
+let _lastSceneDynamicUpdateMs = 0;
 let _lastLightingUpdateNow = 0;
 let _lastAutoExposureUpdateNow = 0;
 let _lastOrionLodUpdateNow = 0;
@@ -218,7 +229,7 @@ export function createScene(canvas) {
   _scene.add(_eventMarkerGroup);
   _scene.add(_moonTrajectoryGroup);
 
-  _starField = _makeStarField(3000);
+  _starField = _makeStarField(1800);
   _scene.add(_starField);
 
   const sunDirection = new THREE.Vector3(50, 30, 80).normalize();
@@ -243,6 +254,14 @@ export function createScene(canvas) {
   _controls.zoomSpeed = 1.15;
   _controls.minDistance = 0.08;
   _controls.maxDistance = 1_200;
+  _controls.addEventListener('start', () => {
+    _controlsUserInteracting = true;
+  });
+  _controls.addEventListener('end', () => {
+    _controlsUserInteracting = false;
+    _syncFollowScaleFromCamera();
+    _notifyZoomChange();
+  });
 
   _renderer.domElement.addEventListener('pointerdown', _onPointerDown);
   _renderer.domElement.addEventListener('pointerup', _onPointerUp);
@@ -439,10 +458,35 @@ export function renderScene() {
     _tickAutoExposure();
     _lastAutoExposureUpdateNow = now;
   }
+  const dynamicInterval = _sceneLoadSmoothing ? SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS : SCENE_DYNAMIC_UPDATE_INTERVAL_MS;
+  if ((now - _lastSceneDynamicUpdateMs) >= dynamicInterval) {
+    _lastSceneDynamicUpdateMs = now;
+  }
   _updateEventCalloutPosition();
   _controls.update();
+  if (_followCameraEnabled && _controlsUserInteracting) {
+    // Preserve user pinch/wheel zoom while follow camera is active.
+    _syncFollowScaleFromCamera();
+  }
   if (_composer && _bloomPass?.enabled) _composer.render();
   else _renderer.render(_scene, _camera);
+}
+
+export function setSceneLoadSmoothingMode(enabled) {
+  _sceneLoadSmoothing = Boolean(enabled);
+  _lastSceneDynamicUpdateMs = 0;
+  _refreshBloomEnabled();
+}
+
+export function warmSceneForPlayback() {
+  if (!_renderer || !_scene || !_camera) return;
+  try {
+    _renderer.compile(_scene, _camera);
+    if (_composer && _bloomPass?.enabled) _composer.render();
+    else _renderer.render(_scene, _camera);
+  } catch {
+    // Warmup is opportunistic; rendering loop will continue normally.
+  }
 }
 
 export function setPerformanceMode(mode) {
@@ -467,10 +511,7 @@ export function setPerformanceMode(mode) {
   else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
   else _renderer.setPixelRatio(Math.min(dpr, LOW_MODE_PIXEL_RATIO));
   if (_starField) _starField.visible = effective !== 'low';
-  if (_bloomPass) {
-    const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
-    _bloomPass.enabled = bloomAllowed;
-  }
+  _refreshBloomEnabled();
   _performanceEffectiveMode = effective;
   _updateOrionLod();
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
@@ -523,7 +564,8 @@ export function setZoomLevel(normalized) {
   if (!_camera || !_controls) return;
   const f = THREE.MathUtils.clamp(Number(normalized), 0, 1);
   if (_followCameraEnabled) {
-    const targetScale = FOLLOW_DISTANCE_MIN + (1 - f) * (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN);
+    const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+    const targetScale = minFollowDistance + (1 - f) * (maxFollowDistance - minFollowDistance);
     _followCameraDistanceScale = clampDistanceScale(targetScale);
     _notifyZoomChange();
     return;
@@ -543,7 +585,8 @@ export function setZoomLevel(normalized) {
 export function getZoomLevel() {
   if (!_camera || !_controls) return 0.5;
   if (_followCameraEnabled) {
-    const pct = 1 - ((_followCameraDistanceScale - FOLLOW_DISTANCE_MIN) / (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN));
+    const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+    const pct = 1 - ((_followCameraDistanceScale - minFollowDistance) / (maxFollowDistance - minFollowDistance));
     return THREE.MathUtils.clamp(pct, 0, 1);
   }
   const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
@@ -810,10 +853,12 @@ function _makeStarField(count) {
     geo,
     new THREE.PointsMaterial({
       color: 0xe7f3ff,
-      size: 0.62,
-      sizeAttenuation: true,
+      size: 0.56,
+      sizeAttenuation: false,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.9,
+      depthWrite: false,
+      toneMapped: false,
     }),
   );
 }
@@ -931,16 +976,16 @@ function _makeOrionCapsule(radius) {
   const engineRadius = radius * 0.17;
 
   _orionBodyMaterial = new THREE.MeshPhongMaterial({
-    color: 0xdce3ee,
-    emissive: 0x1f2734,
-    shininess: 40,
-    specular: 0x98a5b8,
+    color: 0xeaf1fb,
+    emissive: 0x2a3649,
+    shininess: 52,
+    specular: 0xc3d2e6,
   });
   _orionNoseMaterial = new THREE.MeshPhongMaterial({
-    color: 0xeaf0f7,
-    emissive: 0x1d2330,
-    shininess: 48,
-    specular: 0xa8b4c5,
+    color: 0xf6f9ff,
+    emissive: 0x2d394b,
+    shininess: 56,
+    specular: 0xd1dded,
   });
   _orionShieldMaterial = new THREE.MeshPhongMaterial({
     color: 0x5a4333,
@@ -954,10 +999,10 @@ function _makeOrionCapsule(radius) {
     opacity: 0.55,
   });
   _orionServiceMaterial = new THREE.MeshPhongMaterial({
-    color: 0xa2acbf,
-    emissive: 0x1a2130,
-    shininess: 22,
-    specular: 0x667087,
+    color: 0xb6c2d6,
+    emissive: 0x232d40,
+    shininess: 28,
+    specular: 0x7b88a3,
   });
   _orionPanelMaterial = new THREE.MeshPhongMaterial({
     color: 0x4f6da6,
@@ -984,6 +1029,8 @@ function _makeOrionCapsule(radius) {
     _orionBodyMaterial,
   );
   stack.add(crewBody);
+  const usaDecal = _makeOrionUsaDecal(radius, crewRadiusBottom, crewHeight);
+  if (usaDecal) crewBody.add(usaDecal);
 
   const nose = new THREE.Mesh(
     new THREE.ConeGeometry(crewRadiusTop, noseHeight, radialSegments),
@@ -1063,10 +1110,10 @@ function _makeOrionCapsule(radius) {
 
   _orionDetailGroup = stack;
   _orionSimpleMaterial = new THREE.MeshPhongMaterial({
-    color: 0xe3e8f2,
-    emissive: 0x1a2230,
-    shininess: 30,
-    specular: 0x8e9db5,
+    color: 0xf0f4fb,
+    emissive: 0x273246,
+    shininess: 42,
+    specular: 0xb2c2da,
   });
   _orionSimpleMesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(radius * 0.56, radius * 0.78, 8, 14),
@@ -1099,22 +1146,22 @@ function _makeOrionCapsule(radius) {
 
 function _applyOrionCapsuleVisual(orionColorHex) {
   const accent = new THREE.Color(orionColorHex);
-  const bodyBase = new THREE.Color(0xdce3ee);
-  const noseBase = new THREE.Color(0xeaf0f7);
-  const serviceBase = new THREE.Color(0xa2acbf);
+  const bodyBase = new THREE.Color(0xeaf1fb);
+  const noseBase = new THREE.Color(0xf6f9ff);
+  const serviceBase = new THREE.Color(0xb6c2d6);
   const panelBase = new THREE.Color(0x4f6da6);
   const trussBase = new THREE.Color(0x8894a9);
   if (_orionBodyMaterial) {
-    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.18);
-    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.085);
+    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.14);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.12);
   }
   if (_orionNoseMaterial) {
-    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.1);
-    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.06);
+    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.08);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.085);
   }
   if (_orionServiceMaterial) {
-    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.15);
-    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.06);
+    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.12);
+    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.08);
   }
   if (_orionPanelMaterial) {
     _orionPanelMaterial.color.copy(panelBase).lerp(accent, 0.08);
@@ -1126,10 +1173,62 @@ function _applyOrionCapsuleVisual(orionColorHex) {
   }
   if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
   if (_orionSimpleMaterial) {
-    _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.16);
-    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.075);
+    _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.14);
+    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.1);
   }
   if (_orionPlumeMaterial) _orionPlumeMaterial.color.copy(accent).lerp(new THREE.Color(0x8fd4ff), 0.55);
+}
+
+function _makeOrionUsaDecal(radius, bodyRadius, bodyHeight) {
+  if (!_orionUsaDecalTexture) _orionUsaDecalTexture = _makeOrionUsaDecalTexture();
+  if (!_orionUsaDecalTexture) return null;
+  const decal = new THREE.Mesh(
+    new THREE.PlaneGeometry(radius * ORION_USA_DECAL_WIDTH_SCALE, radius * ORION_USA_DECAL_HEIGHT_SCALE),
+    new THREE.MeshBasicMaterial({
+      map: _orionUsaDecalTexture,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
+  );
+  decal.position.set(
+    bodyRadius * ORION_USA_DECAL_OFFSET_SCALE,
+    bodyHeight * ORION_USA_DECAL_Y_OFFSET_SCALE,
+    0,
+  );
+  decal.rotation.y = -Math.PI / 2;
+  return decal;
+}
+
+function _makeOrionUsaDecalTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 220px "Arial Black", "Segoe UI", sans-serif';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.strokeStyle = 'rgba(8, 14, 28, 0.9)';
+  ctx.lineWidth = 22;
+  ctx.strokeText('USA', canvas.width * 0.5, canvas.height * 0.54);
+  ctx.fillStyle = '#f6fbff';
+  ctx.fillText('USA', canvas.width * 0.5, canvas.height * 0.54);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = Math.min(8, _renderer?.capabilities?.getMaxAnisotropy?.() || 1);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function getSafeCanvasSize(canvas) {
@@ -1268,8 +1367,9 @@ function _tryLoadOrionModel() {
 
 function _tickAutoExposure() {
   if (!_renderer || !_camera || !_controls || !_visualPresetConfig) return;
+  const { max: maxFollowDistance } = _getFollowDistanceLimits();
   const targetDistance = _followCameraEnabled
-    ? THREE.MathUtils.lerp(_controls.minDistance, _controls.maxDistance, 0.2 + (_followCameraDistanceScale / FOLLOW_DISTANCE_MAX) * 0.45)
+    ? THREE.MathUtils.lerp(_controls.minDistance, _controls.maxDistance, 0.2 + (_followCameraDistanceScale / maxFollowDistance) * 0.45)
     : _camera.position.distanceTo(_controls.target);
   if (!Number.isFinite(targetDistance)) return;
   const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
@@ -1406,12 +1506,48 @@ function _onPointerUp(event) {
 }
 
 function _onWheel() {
-  if (_followCameraEnabled) _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
+  if (_followCameraEnabled) {
+    // Wheel/pinch deltas are applied by OrbitControls; capture result on next frame.
+    requestAnimationFrame(() => {
+      _syncFollowScaleFromCamera();
+      _notifyZoomChange();
+    });
+    return;
+  }
   _notifyZoomChange();
 }
 
 function clampDistanceScale(value) {
-  return THREE.MathUtils.clamp(value, FOLLOW_DISTANCE_MIN, FOLLOW_DISTANCE_MAX);
+  const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+  return THREE.MathUtils.clamp(value, minFollowDistance, maxFollowDistance);
+}
+
+function _getFollowDistanceLimits() {
+  const phoneFriendlyCinematic = _followCameraMode === 'cinematic'
+    && typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY).matches;
+  return {
+    min: FOLLOW_DISTANCE_MIN,
+    max: phoneFriendlyCinematic ? FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC : FOLLOW_DISTANCE_MAX,
+  };
+}
+
+function _syncFollowScaleFromCamera() {
+  if (!_followCameraEnabled || !_camera || !_orionMarker) return;
+  const baseDistance = _getFollowCameraBaseDistance(_followCameraMode);
+  if (!Number.isFinite(baseDistance) || baseDistance <= 1e-6) return;
+  const cameraToOrion = _camera.position.distanceTo(_orionMarker.position);
+  if (!Number.isFinite(cameraToOrion) || cameraToOrion <= 0) return;
+  _followCameraDistanceScale = clampDistanceScale(cameraToOrion / baseDistance);
+}
+
+function _getFollowCameraBaseDistance(mode) {
+  if (mode === 'cinematic') return Math.hypot(1.7, 0.74);
+  if (mode === 'side') return Math.hypot(1.15, 0.48, 1.35);
+  if (mode === 'earth-frame') return Math.hypot(0.95, 0.55, 1.05);
+  if (mode === 'moon-frame') return Math.hypot(1.45, 0.55);
+  return Math.hypot(1.35, 0.55);
 }
 
 function getVisualPresetSettings(preset) {
@@ -1496,10 +1632,18 @@ function getVisualPresetSettings(preset) {
 function _applyBloomSettings(bloom) {
   if (!_bloomPass) return;
   const config = bloom || BLOOM_DISABLED;
-  _bloomPass.enabled = config.enabled !== false;
   _bloomPass.strength = Number.isFinite(config.strength) ? config.strength : 0;
   _bloomPass.radius = Number.isFinite(config.radius) ? config.radius : 0;
   _bloomPass.threshold = Number.isFinite(config.threshold) ? config.threshold : 1;
+  _refreshBloomEnabled();
+}
+
+function _refreshBloomEnabled() {
+  if (!_bloomPass) return;
+  const bloomAllowed = !_sceneLoadSmoothing
+    && _performanceEffectiveMode !== 'low'
+    && _visualPresetConfig?.bloom?.enabled !== false;
+  _bloomPass.enabled = bloomAllowed;
 }
 
 function _notifyZoomChange() {
