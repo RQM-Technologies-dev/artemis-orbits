@@ -210,6 +210,7 @@ function bootstrapApp() {
     buildPerformanceOptions();
     buildVisualPresetOptions();
     buildTabs();
+    initSidebarCollapsibles();
     wireUiEvents();
     parseInitialUiStateFromUrl();
     syncZoomUiFromScene(true);
@@ -368,6 +369,56 @@ function getDomRefs() {
     a5SourcesMoonbase: pickOptional('a5-sources-moonbase'),
     a5SourcesDrift: pickOptional('a5-sources-drift'),
   };
+}
+
+function getSidebarCardTitle(card) {
+  if (!card) return 'Section';
+  const explicit = String(card.dataset.collapseLabel || '').trim();
+  if (explicit) return explicit;
+  const nestedHeading = card.querySelector('h2, h3');
+  if (nestedHeading?.textContent) return nestedHeading.textContent.trim();
+  if (!card.id) return 'Section';
+  return card.id
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function initSidebarCollapsibles() {
+  const cards = Array.from(document.querySelectorAll('#sidebar .card'));
+  for (const card of cards) {
+    if (card.id === 'playback-card') continue;
+    if (card.dataset.collapsibleInit === '1') continue;
+    card.dataset.collapsibleInit = '1';
+
+    const directHeading = card.querySelector(':scope > h2, :scope > h3');
+    const label = (directHeading?.textContent || getSidebarCardTitle(card)).trim() || 'Section';
+    if (directHeading) directHeading.remove();
+
+    const content = document.createElement('div');
+    content.className = 'card-collapse-content';
+    const contentId = `${card.id || 'sidebar-card'}-content`;
+    content.id = contentId;
+    while (card.firstChild) content.appendChild(card.firstChild);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'card-collapse-toggle';
+    toggle.textContent = label;
+    toggle.setAttribute('aria-controls', contentId);
+    toggle.setAttribute('aria-expanded', 'false');
+
+    card.classList.add('card-collapsible', 'card-collapsed');
+    content.hidden = true;
+
+    toggle.addEventListener('click', () => {
+      const collapsed = card.classList.toggle('card-collapsed');
+      content.hidden = collapsed;
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+
+    card.appendChild(toggle);
+    card.appendChild(content);
+  }
 }
 
 function getEventTypeClass(type) {

@@ -323,6 +323,46 @@ body {
 #sidebar { display: flex; flex-direction: column; gap: 10px; padding: 10px; background: var(--bg-card); border-left: 1px solid var(--border); overflow-y: auto; }
 .card { background: var(--bg-card2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
 .card h2, .card h3 { font-size: .9rem; font-weight: 600; color: #fff; margin-bottom: 6px; }
+.card.collapsible-card { padding-top: 10px; }
+.card-header-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 6px;
+  text-align: left;
+}
+.card-header-btn:hover .card-header-title {
+  color: #f3f8ff;
+}
+.card-header-btn:focus-visible {
+  outline: 2px solid #8fc5ff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.card-header-title {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.2;
+}
+.card-header-icon {
+  font-size: .95rem;
+  line-height: 1;
+  color: #a9c4e7;
+}
+.card.collapsible-card > .card-body {
+  overflow: hidden;
+}
+.card.collapsible-card.is-collapsed > .card-body {
+  display: none;
+}
 .muted { color: var(--text-dim); font-size: .82rem; }
 .status-msg { margin-top: 6px; font-size: .78rem; color: var(--green); min-height: 1.2em; }
 .status-msg.status-ok { color: var(--green); }
