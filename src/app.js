@@ -61,6 +61,7 @@ const HEAVY_UI_UPDATE_INTERVAL_MS = 120;
 const TRAVERSED_TRAIL_UPDATE_INTERVAL_MS = 160;
 const URL_SYNC_INTERVAL_MS = 350;
 const ZOOM_UI_UPDATE_INTERVAL_MS = 80;
+const BACKGROUND_WARMUP_FRAMES = 10;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -133,6 +134,8 @@ const state = {
   currentMs: 0,
   flatSamples: [],
   sceneHydrated: false,
+  sceneWarmReady: false,
+  backgroundWarmupRemaining: 0,
   playing: false,
   scrubbing: false,
   diagnostics: {
@@ -259,6 +262,12 @@ function maybeStartPhoneFriendlyPlayback() {
   setSceneStartMissionButtonVisible(false);
   _phoneFriendlyAutoplayKey = autoplayKey;
   updateScene();
+}
+
+function maybeStartBackgroundWarmupFrames() {
+  if (!hasMissionTimeline()) return;
+  // Warm rendering paths while idle so pressing Play starts immediately.
+  state.backgroundWarmupRemaining = Math.max(state.backgroundWarmupRemaining, BACKGROUND_WARMUP_FRAMES);
 }
 
 function getDomRefs() {
@@ -1640,6 +1649,8 @@ async function selectMission(id) {
 
   setSidebarStatus('Fallback scene active — waiting for mission data');
   state.sceneHydrated = false;
+  state.sceneWarmReady = false;
+  state.backgroundWarmupRemaining = 0;
   setSceneLoadSmoothingMode(true);
   const dataPaths = getMissionDataPaths(mission);
   const modelPromise = mission.id === 'artemis-3'
@@ -1735,7 +1746,8 @@ async function selectMission(id) {
     : mission.id === 'artemis-5'
       ? `Mission scene active — Artemis V (${artemis5Profile?.displayName || 'Current mission'})`
       : `Mission scene active — ${mission.displayName}`;
-  setSidebarStatus(missionLabel);
+  setSidebarStatus(`${missionLabel} (warming in background…)`);
+  maybeStartBackgroundWarmupFrames();
   maybeStartPhoneFriendlyPlayback();
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
@@ -1753,6 +1765,7 @@ function scheduleDeferredSceneHydration(token) {
       state.sceneHydrated = true;
       setSceneLoadSmoothingMode(false);
       updateScene({ forceHeavy: true });
+      maybeStartBackgroundWarmupFrames();
     } catch (error) {
       setSceneLoadSmoothingMode(false);
       handleStartupError('Scene hydration failed', error);
@@ -1789,6 +1802,14 @@ function startRafLoop() {
       }
       state.currentMs = clamp(state.currentMs, state.missionStartMs, state.missionStopMs);
       updateScene({ now });
+    }
+    if (!state.playing && state.sceneHydrated && state.backgroundWarmupRemaining > 0) {
+      updateScene({ now, forceHeavy: true });
+      state.backgroundWarmupRemaining -= 1;
+      if (state.backgroundWarmupRemaining <= 0 && !state.sceneWarmReady) {
+        state.sceneWarmReady = true;
+        setSidebarStatus('Scene loaded and ready — press Play');
+      }
     }
 
     try {
@@ -1945,6 +1966,8 @@ function resetLoadedMissionState() {
   state.eventMarkers = [];
   state.flatSamples = [];
   state.sceneHydrated = false;
+  state.sceneWarmReady = false;
+  state.backgroundWarmupRemaining = 0;
   state.missionStartMs = 0;
   state.missionStopMs = 0;
   state.currentMs = 0;

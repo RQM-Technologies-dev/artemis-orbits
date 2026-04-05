@@ -453,6 +453,17 @@ export function setSceneLoadSmoothingMode(enabled) {
   _refreshBloomEnabled();
 }
 
+export function warmSceneForPlayback() {
+  if (!_renderer || !_scene || !_camera) return;
+  try {
+    _renderer.compile(_scene, _camera);
+    if (_composer && _bloomPass?.enabled) _composer.render();
+    else _renderer.render(_scene, _camera);
+  } catch {
+    // Warmup is opportunistic; rendering loop will continue normally.
+  }
+}
+
 export function setPerformanceMode(mode) {
   if (!_renderer) return;
   const normalized = ['auto', 'high', 'balanced', 'low'].includes(mode) ? mode : 'auto';
