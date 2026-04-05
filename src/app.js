@@ -30,6 +30,8 @@ import {
   setActiveEventCallout,
   setOrionAttitudeReference,
   captureSceneImage,
+  recenterFollowCamera,
+  snapCameraToEventView,
 } from './lib/scene.js';
 import {
   loadMissionData,
@@ -51,6 +53,7 @@ const MANEUVER_WINDOW_MS = 25 * 60_000;
 const EVENT_CALLOUT_WINDOW_MS = 8 * 60_000;
 const TTS_SERVICE_BASE_URL = 'https://rqm-api.onrender.com';
 const TTS_SPEAK_COOLDOWN_MS = 15_000;
+const LIVE_SYNC_EPS_MS = 250;
 
 const SPEED_OPTIONS = [
   { label: '1x real time', missionMsPerWallSecond: 1000 },
@@ -74,6 +77,7 @@ const state = {
   missionData: null,
   moonData: null,
   events: [],
+  missionPhases: [],
   eventMarkers: [],
   missionStartMs: 0,
   missionStopMs: 0,
@@ -92,7 +96,7 @@ const state = {
   ui: {
     performanceMode: 'auto',
     followCamera: false,
-    followCameraMode: 'standard',
+    followCameraMode: 'chase',
     attitudeReference: 'velocity',
     eventVoiceEnabled: false,
     eventVoiceVolume: 0.75,
@@ -100,6 +104,7 @@ const state = {
     lastNonFollowCamera: 'mission-fit',
     visualPreset: 'bright',
     zoomLevel: 0.5,
+    liveMode: false,
   },
 };
 
@@ -171,6 +176,11 @@ function getDomRefs() {
     sbMet: pick('sb-met'),
     sbFrame: pick('sb-frame'),
     sbSampleCount: pick('sb-sample-count'),
+    sbPhase: pickOptional('sb-phase'),
+    sbSpeed: pickOptional('sb-speed'),
+    sbEarthDist: pickOptional('sb-earth-dist'),
+    sbMoonDist: pickOptional('sb-moon-dist'),
+    sbNextEvent: pickOptional('sb-next-event'),
     sbEvent: pick('sb-current-event'),
     btnPlay: pick('btn-play'),
     btnReset: pick('btn-reset'),
@@ -182,6 +192,7 @@ function getDomRefs() {
     btnPlus1h: pick('btn-plus-1h'),
     btnMinus1d: pick('btn-minus-1d'),
     btnPlus1d: pick('btn-plus-1d'),
+    btnLive: pickOptional('btn-live'),
     speedSelect: pick('speed-select'),
     timelineSlider: pick('timeline-slider'),
     timelineTicks: pick('timeline-ticks'),
@@ -189,6 +200,8 @@ function getDomRefs() {
     btnCamMoon: pick('btn-cam-moon'),
     btnCamFit: pick('btn-cam-fit'),
     btnCamFollow: pick('btn-cam-follow'),
+    btnCamRecenter: pickOptional('btn-cam-recenter'),
+    btnCamSnapEvent: pickOptional('btn-cam-snap-event'),
     followModeSelect: pickOptional('follow-mode-select'),
     attitudeSelect: pickOptional('attitude-select'),
     btnZoomIn: pick('btn-zoom-in'),
@@ -209,6 +222,103 @@ function getDomRefs() {
     ttsStatus: pickOptional('tts-status'),
     annotationList: pick('mission-annotations'),
   };
+}
+
+function getEventTypeClass(type) {
+  const t = String(type || '').toLowerCase();
+  if (t.includes('burn') || t.includes('maneuver')) return 'burn';
+  if (t.includes('boundary')) return t.includes('system') ? 'system-boundary' : 'data-boundary';
+  return 'milestone';
+}
+
+function formatDistanceKm(distanceKm) {
+  if (!Number.isFinite(distanceKm)) return '—';
+  if (distanceKm >= 1_000_000) return `${(distanceKm / 1_000_000).toFixed(3)}M km`;
+  return `${Math.round(distanceKm).toLocaleString('en-US')} km`;
+}
+
+function formatSpeedKmS(speedKmS) {
+  if (!Number.isFinite(speedKmS)) return '—';
+  return `${speedKmS.toFixed(3)} km/s`;
+}
+
+function formatCountdownToEvent(eventMs, nowMs) {
+  const diffMs = eventMs - nowMs;
+  const sign = diffMs >= 0 ? 'T-' : 'T+';
+  const abs = Math.abs(diffMs);
+  const totalSec = Math.floor(abs / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${sign}${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+function buildMissionPhases(events, missionStartMs, missionStopMs) {
+  if (!Number.isFinite(missionStartMs) || !Number.isFinite(missionStopMs) || missionStopMs <= missionStartMs) return [];
+  const sorted = [...(events || [])].sort((a, b) => a.epochMs - b.epochMs);
+  let lunarStartMs = null;
+  let returnStartMs = null;
+  for (const event of sorted) {
+    const label = `${event.label || ''} ${event.type || ''}`.toLowerCase();
+    if (lunarStartMs == null && (label.includes('flyby') || label.includes('retrograde') || label.includes('lunar'))) {
+      lunarStartMs = event.epochMs;
+    }
+    if (returnStartMs == null && (label.includes('return') || label.includes('departure') || label.includes('entry') || label.includes('reentry'))) {
+      returnStartMs = event.epochMs;
+    }
+  }
+  const span = missionStopMs - missionStartMs;
+  if (lunarStartMs == null) lunarStartMs = missionStartMs + (span * 0.33);
+  if (returnStartMs == null) returnStartMs = missionStartMs + (span * 0.66);
+  lunarStartMs = clamp(lunarStartMs, missionStartMs, missionStopMs);
+  returnStartMs = clamp(returnStartMs, lunarStartMs, missionStopMs);
+  return [
+    { id: 'outbound', label: 'Outbound coast', startMs: missionStartMs, stopMs: lunarStartMs },
+    { id: 'lunar', label: 'Lunar flyby operations', startMs: lunarStartMs, stopMs: returnStartMs },
+    { id: 'return', label: 'Return and Earth approach', startMs: returnStartMs, stopMs: missionStopMs },
+  ];
+}
+
+function getMissionPhase(currentMs) {
+  if (!state.missionPhases.length) return null;
+  for (const phase of state.missionPhases) {
+    if (currentMs >= phase.startMs && currentMs <= phase.stopMs) return phase;
+  }
+  if (currentMs < state.missionPhases[0].startMs) return state.missionPhases[0];
+  return state.missionPhases[state.missionPhases.length - 1];
+}
+
+function getCurrentTelemetryValues(orionState, moonState, eventCtx) {
+  const phase = getMissionPhase(state.currentMs);
+  const speedKmS = Array.isArray(orionState?.velocityKmS)
+    ? Math.hypot(orionState.velocityKmS[0], orionState.velocityKmS[1], orionState.velocityKmS[2])
+    : null;
+  const earthDistKm = Array.isArray(orionState?.positionKm)
+    ? Math.hypot(orionState.positionKm[0], orionState.positionKm[1], orionState.positionKm[2])
+    : null;
+  const moonDistKm = (Array.isArray(orionState?.positionKm) && Array.isArray(moonState?.positionKm))
+    ? Math.hypot(
+      orionState.positionKm[0] - moonState.positionKm[0],
+      orionState.positionKm[1] - moonState.positionKm[1],
+      orionState.positionKm[2] - moonState.positionKm[2],
+    )
+    : null;
+  const nextEvent = eventCtx?.next || null;
+  return {
+    phaseLabel: phase?.label || 'Mission timeline',
+    speedLabel: formatSpeedKmS(speedKmS),
+    earthDistLabel: formatDistanceKm(earthDistKm),
+    moonDistLabel: formatDistanceKm(moonDistKm),
+    nextEventLabel: nextEvent ? `${nextEvent.label}${eventVerificationTag(nextEvent)} ${formatCountdownToEvent(nextEvent.epochMs, state.currentMs)}` : '—',
+  };
+}
+
+function refreshTelemetryOverlay(values) {
+  if (refs.sbPhase) refs.sbPhase.textContent = `Phase: ${values.phaseLabel}`;
+  if (refs.sbSpeed) refs.sbSpeed.textContent = values.speedLabel;
+  if (refs.sbEarthDist) refs.sbEarthDist.textContent = values.earthDistLabel;
+  if (refs.sbMoonDist) refs.sbMoonDist.textContent = values.moonDistLabel;
+  if (refs.sbNextEvent) refs.sbNextEvent.textContent = values.nextEventLabel;
 }
 
 function buildSpeedOptions() {
@@ -277,6 +387,7 @@ function wireUiEvents() {
       setSidebarStatus('Playback unavailable — mission data not loaded');
       return;
     }
+    if (state.ui.liveMode) setLiveModeUi(false);
     state.playing = !state.playing;
     refs.btnPlay.textContent = state.playing ? '⏸ Pause' : '▶ Play';
     if (state.playing && state.currentMs >= state.missionStopMs) state.currentMs = state.missionStartMs;
@@ -290,6 +401,7 @@ function wireUiEvents() {
       setSidebarStatus('Reset fallback scene');
       return;
     }
+    if (state.ui.liveMode) setLiveModeUi(false, { status: false });
     state.currentMs = state.missionStartMs;
     state.playing = false;
     refs.btnPlay.textContent = '▶ Play';
@@ -305,6 +417,11 @@ function wireUiEvents() {
   refs.btnPlus1h.addEventListener('click', () => stepTime(MS_PER_H));
   refs.btnMinus1d.addEventListener('click', () => stepTime(-MS_PER_D));
   refs.btnPlus1d.addEventListener('click', () => stepTime(MS_PER_D));
+  if (refs.btnLive) {
+    refs.btnLive.addEventListener('click', () => {
+      setLiveModeUi(!state.ui.liveMode);
+    });
+  }
 
   refs.btnCamEarth.addEventListener('click', () => {
     applyCameraPreset('earth-centered');
@@ -324,9 +441,25 @@ function wireUiEvents() {
     applyCameraPreset(nextPreset);
     setSidebarStatus(enablingFollow ? 'Camera preset: Follow Orion' : 'Follow camera disabled');
   });
+  if (refs.btnCamRecenter) {
+    refs.btnCamRecenter.addEventListener('click', () => {
+      recenterFollowCamera();
+      setSidebarStatus('Camera recentered on Orion');
+    });
+  }
+  if (refs.btnCamSnapEvent) {
+    refs.btnCamSnapEvent.addEventListener('click', () => {
+      const eventCtx = getEventContext(state.events, state.currentMs);
+      const anchor = eventCtx.active || eventCtx.nearest;
+      const marker = anchor ? state.eventMarkers.find((m) => m.id === anchor.id) : null;
+      const moonState = getInterpolatedState(state.moonData, state.currentMs);
+      snapCameraToEventView({ eventPositionKm: marker?.positionKm || null, moonKm: moonState?.positionKm || null });
+      setSidebarStatus(anchor ? `Snapped to event: ${anchor.label}` : 'Snapped to nearest trajectory point');
+    });
+  }
   if (refs.followModeSelect) {
     refs.followModeSelect.addEventListener('change', () => {
-      const next = refs.followModeSelect.value === 'cinematic' ? 'cinematic' : 'standard';
+      const next = refs.followModeSelect.value;
       setFollowCameraModeUi(next);
       setSidebarStatus(`Follow camera: ${next}`);
     });
@@ -394,6 +527,7 @@ function wireUiEvents() {
   refs.speedSelect.addEventListener('change', () => {
     const selected = refs.speedSelect.options[refs.speedSelect.selectedIndex];
     if (selected) {
+      if (state.ui.liveMode) setLiveModeUi(false, { status: false });
       setSidebarStatus(`Playback speed: ${selected.textContent}`);
       syncUrlState();
     }
@@ -419,6 +553,7 @@ function wireUiEvents() {
   refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
   refs.timelineSlider.addEventListener('input', () => {
     if (!state.flatSamples.length || state.missionStopMs <= state.missionStartMs) return;
+    if (state.ui.liveMode) setLiveModeUi(false, { status: false });
     const f = Number(refs.timelineSlider.value) / Number(refs.timelineSlider.max);
     state.currentMs = state.missionStartMs + f * (state.missionStopMs - state.missionStartMs);
     updateScene();
@@ -504,6 +639,7 @@ async function selectMission(id) {
 
   refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
   state.events = prepareMissionEvents(state.events, state.missionStartMs, state.missionStopMs);
+  state.missionPhases = buildMissionPhases(state.events, state.missionStartMs, state.missionStopMs);
 
   setFollowCameraModeUi(state.ui.followCameraMode, { sync: false });
   setAttitudeReferenceUi(state.ui.attitudeReference, { sync: false });
@@ -527,6 +663,7 @@ async function selectMission(id) {
   updateScene();
   refreshMissionAnnotations(mission);
   applyInitialTimeOverrideFromUrl();
+  if (state.ui.liveMode) setLiveModeUi(true, { sync: false, status: false });
   syncUrlState();
 
   const missionLabel = mission.id === 'artemis-1' ? 'Mission scene active — Artemis I' : 'Mission scene active — Artemis II';
@@ -541,6 +678,14 @@ function startRafLoop() {
   function frame(now) {
     const dtMs = now - prev;
     prev = now;
+
+    if (state.ui.liveMode && hasMissionTimeline()) {
+      const liveClockMs = clamp(Date.now(), state.missionStartMs, state.missionStopMs);
+      if (Math.abs(liveClockMs - state.currentMs) > LIVE_SYNC_EPS_MS) {
+        state.currentMs = liveClockMs;
+        updateScene();
+      }
+    }
 
     if (state.playing && state.flatSamples.length) {
       const missionMsPerWallSecond = Number(refs.speedSelect.value);
@@ -605,6 +750,7 @@ function updateScene() {
   if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
   else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
   else refs.sbEvent.textContent = 'No events loaded';
+  refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
 
   const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
   setOrionManeuverLevel(maneuverIntensity);
@@ -642,8 +788,13 @@ function refreshTimelineEventTicks() {
     if (pct < 0 || pct > 100) continue;
     const tick = document.createElement('span');
     tick.className = 'timeline-tick';
+    tick.dataset.type = getEventTypeClass(event.type);
     tick.style.left = `${pct}%`;
-    tick.title = `${event.label} — ${event.epochUtc}`;
+    tick.title = [
+      `${event.label}${eventVerificationTag(event)}`,
+      event.epochUtc,
+      event.description || event.type || 'event',
+    ].filter(Boolean).join('\n');
     tick.addEventListener('click', () => jumpToEventById(event.id));
     refs.timelineTicks.appendChild(tick);
   }
@@ -653,6 +804,7 @@ function resetLoadedMissionState() {
   state.missionData = null;
   state.moonData = null;
   state.events = [];
+  state.missionPhases = [];
   state.eventMarkers = [];
   state.flatSamples = [];
   state.missionStartMs = 0;
@@ -674,6 +826,11 @@ function resetLoadedMissionState() {
   refs.sbFrame.textContent = '—';
   refs.sbSampleCount.textContent = '—';
   refs.sbEvent.textContent = 'No events loaded';
+  if (refs.sbPhase) refs.sbPhase.textContent = 'Phase: —';
+  if (refs.sbSpeed) refs.sbSpeed.textContent = '—';
+  if (refs.sbEarthDist) refs.sbEarthDist.textContent = '—';
+  if (refs.sbMoonDist) refs.sbMoonDist.textContent = '—';
+  if (refs.sbNextEvent) refs.sbNextEvent.textContent = '—';
   refreshTimelineEventTicks();
   resetSceneDynamicState();
 }
@@ -683,6 +840,7 @@ function jumpToMissionStart() {
     setSidebarStatus('Mission timeline unavailable');
     return;
   }
+  if (state.ui.liveMode) setLiveModeUi(false, { status: false });
   state.currentMs = state.missionStartMs;
   updateScene();
   setSidebarStatus('Jumped to mission start');
@@ -694,6 +852,7 @@ function jumpToMissionEnd() {
     setSidebarStatus('Mission timeline unavailable');
     return;
   }
+  if (state.ui.liveMode) setLiveModeUi(false, { status: false });
   state.currentMs = state.missionStopMs;
   updateScene();
   setSidebarStatus('Jumped to mission end');
@@ -705,6 +864,7 @@ function jumpToPreviousEvent() {
     setSidebarStatus('Mission timeline unavailable');
     return;
   }
+  if (state.ui.liveMode) setLiveModeUi(false, { status: false });
   const previous = findPreviousEvent(state.events, state.currentMs);
   if (previous) {
     state.currentMs = clamp(previous.epochMs, state.missionStartMs, state.missionStopMs);
@@ -724,6 +884,7 @@ function jumpToNextEvent() {
     setSidebarStatus('Mission timeline unavailable');
     return;
   }
+  if (state.ui.liveMode) setLiveModeUi(false, { status: false });
   const next = findNextEvent(state.events, state.currentMs);
   if (next) {
     state.currentMs = clamp(next.epochMs, state.missionStartMs, state.missionStopMs);
@@ -743,6 +904,7 @@ function stepTime(deltaMs) {
     setSidebarStatus('Mission timeline unavailable');
     return;
   }
+  if (state.ui.liveMode) setLiveModeUi(false, { status: false });
   state.currentMs = clamp(state.currentMs + deltaMs, state.missionStartMs, state.missionStopMs);
   updateScene();
   syncUrlState();
@@ -904,6 +1066,7 @@ function parseInitialUiStateFromUrl() {
   const attitude = params.get('attitude');
   const voice = params.get('voice');
   const voiceVol = params.get('voiceVol');
+  const live = params.get('live');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
@@ -922,8 +1085,10 @@ function parseInitialUiStateFromUrl() {
   state.ui.followCamera = follow === '1';
   if (state.ui.cameraPreset === 'follow-orion') state.ui.followCamera = true;
   setFollowButtonUi();
+  state.ui.liveMode = live === '1';
+  setLiveButtonUi();
   setFollowCameraEnabled(state.ui.followCamera);
-  setFollowCameraModeUi(followMode === 'cinematic' ? 'cinematic' : 'standard', { sync: false });
+  setFollowCameraModeUi(followMode || 'chase', { sync: false });
   setAttitudeReferenceUi(['velocity', 'earth', 'moon'].includes(attitude || '') ? attitude : 'velocity', { sync: false });
   setEventVoiceEnabledUi(voice === '1', { sync: false });
   const parsedVoiceVol = Number(voiceVol);
@@ -961,13 +1126,14 @@ function syncUrlState() {
   params.set('speed', refs.speedSelect.value);
   params.set('perf', state.ui.performanceMode);
   params.set('follow', state.ui.followCamera ? '1' : '0');
-  params.set('followMode', state.ui.followCameraMode || 'standard');
+  params.set('followMode', state.ui.followCameraMode || 'chase');
   params.set('attitude', state.ui.attitudeReference || 'velocity');
   params.set('voice', state.ui.eventVoiceEnabled ? '1' : '0');
   params.set('voiceVol', (Number.isFinite(state.ui.eventVoiceVolume) ? state.ui.eventVoiceVolume : 0.75).toFixed(2));
   params.set('cam', state.ui.cameraPreset);
   params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
   params.set('vpreset', state.ui.visualPreset || getVisualPreset());
+  params.set('live', state.ui.liveMode ? '1' : '0');
   const query = params.toString();
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
   if (_lastSyncedUrl !== next) {
@@ -1009,10 +1175,38 @@ function setAttitudeReferenceUi(value, { sync = true } = {}) {
 }
 
 function setFollowCameraModeUi(value, { sync = true } = {}) {
-  const next = value === 'cinematic' ? 'cinematic' : 'standard';
+  const allowed = ['chase', 'cinematic', 'side', 'earth-frame', 'moon-frame'];
+  const normalized = value === 'standard' ? 'chase' : value;
+  const next = allowed.includes(normalized) ? normalized : 'chase';
   state.ui.followCameraMode = next;
   if (refs.followModeSelect) refs.followModeSelect.value = next;
   setFollowCameraMode(next);
+  if (sync) syncUrlState();
+}
+
+function setLiveButtonUi() {
+  if (!refs.btnLive) return;
+  refs.btnLive.classList.toggle('btn-live', state.ui.liveMode);
+  refs.btnLive.textContent = `Live: ${state.ui.liveMode ? 'On' : 'Off'}`;
+}
+
+function setLiveModeUi(enabled, { sync = true, status = true } = {}) {
+  const shouldEnable = Boolean(enabled);
+  if (shouldEnable && !hasMissionTimeline()) {
+    if (status) setSidebarStatus('Live mode unavailable — mission timeline missing');
+    state.ui.liveMode = false;
+    setLiveButtonUi();
+    if (sync) syncUrlState();
+    return;
+  }
+  state.ui.liveMode = shouldEnable;
+  if (state.ui.liveMode) {
+    state.playing = false;
+    refs.btnPlay.textContent = '▶ Play';
+    state.currentMs = clamp(Date.now(), state.missionStartMs, state.missionStopMs);
+    updateScene();
+  }
+  setLiveButtonUi();
   if (sync) syncUrlState();
 }
 

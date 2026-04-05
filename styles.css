@@ -82,6 +82,13 @@ body {
   font-family: 'Courier New', monospace;
   font-size: .8rem;
 }
+.scene-phase {
+  color: #fff3b2;
+  font-size: .84rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  margin-bottom: 2px;
+}
 #scene-telemetry {
   position: absolute;
   top: 12px;
@@ -170,6 +177,15 @@ body {
 .btn:hover { background: #1f2d48; border-color: var(--accent-dim); }
 .btn-primary { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent); }
+.btn-live {
+  border-color: #46bf89;
+  background: #1d4f3d;
+  color: #e8fff5;
+}
+.btn-live:hover {
+  background: #25614b;
+  border-color: #59d19a;
+}
 .btn.is-toggled { border-color: #7fb6ff; background: #274472; color: #f0f7ff; }
 .btn:focus-visible,
 .select:focus-visible,
@@ -197,6 +213,18 @@ body {
 .timeline-ticks { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: auto; }
 .timeline-tick { position: absolute; top: -2px; width: 2px; height: 8px; background: #ff77aa; opacity: .7; transform: translateX(-1px); }
 .timeline-tick:hover { opacity: 1; cursor: pointer; box-shadow: 0 0 0 1px rgba(255, 119, 170, 0.4); }
+.timeline-tick[data-type="burn"] {
+  height: 10px;
+  background: #ff9f64;
+}
+.timeline-tick[data-type="milestone"] {
+  background: #7cc5ff;
+}
+.timeline-tick[data-type="data-boundary"],
+.timeline-tick[data-type="system-boundary"] {
+  height: 9px;
+  background: #c58cff;
+}
 
 .annotation-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
 .annotation-list li { border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; background: rgba(12, 18, 31, 0.66); }

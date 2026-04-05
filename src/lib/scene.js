@@ -7,6 +7,7 @@ import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/exampl
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
 
 import { kmToScene } from './units.js';
 
@@ -68,10 +69,11 @@ let _orionPlumeMaterial = null;
 let _orionDetailGroup = null;
 let _orionSimpleMesh = null;
 let _orionPlumeMesh = null;
+let _orionModelRoot = null;
 let _orionAttitudeReference = 'velocity';
 let _orionVelocityScene = new THREE.Vector3(1, 0, 0);
 let _orionManeuverLevel = 0;
-let _followCameraMode = 'standard';
+let _followCameraMode = 'chase';
 let _performanceEffectiveMode = 'balanced';
 let _trajectorySplitMs = null;
 let _eventCalloutSprite = null;
@@ -158,6 +160,7 @@ export function createScene(canvas) {
   _orionMarker = _makeOrionCapsule(kmToScene(ORION_MARKER_KM));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
+  _tryLoadOrionModel();
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
   _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0x9ecbff, transparent: true, opacity: 0.16 }));
@@ -509,7 +512,44 @@ export function setEventMarkerClickHandler(handler) {
 }
 
 export function setFollowCameraMode(mode) {
-  _followCameraMode = mode === 'cinematic' ? 'cinematic' : 'standard';
+  const allowed = ['chase', 'cinematic', 'side', 'earth-frame', 'moon-frame'];
+  _followCameraMode = allowed.includes(mode) ? mode : 'chase';
+}
+
+export function recenterFollowCamera() {
+  if (!_camera || !_controls || !_orionMarker) return;
+  const target = _orionMarker.position.clone();
+  const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
+    ? _orionVelocityScene.clone().normalize()
+    : new THREE.Vector3(1, 0, 0);
+  const trailing = velocityDir.clone().multiplyScalar(-1.35 * clampDistanceScale(_followCameraDistanceScale));
+  const up = new THREE.Vector3(0, 1, 0).multiplyScalar(0.55 * clampDistanceScale(_followCameraDistanceScale));
+  _camera.position.copy(target.clone().add(trailing).add(up));
+  _controls.target.copy(target);
+  _controls.update();
+}
+
+export function snapCameraToEventView({ eventPositionKm = null, moonKm = null } = {}) {
+  if (!_camera || !_controls) return;
+  if (Array.isArray(eventPositionKm) && eventPositionKm.length === 3) {
+    const ex = kmToScene(eventPositionKm[0]);
+    const ey = kmToScene(eventPositionKm[1]);
+    const ez = kmToScene(eventPositionKm[2]);
+    const target = new THREE.Vector3(ex, ey, ez);
+    const dir = _orionVelocityScene.lengthSq() > 1e-12
+      ? _orionVelocityScene.clone().normalize()
+      : new THREE.Vector3(1, 0, 0);
+    const cameraPos = target.clone()
+      .add(dir.clone().multiplyScalar(-1.9))
+      .add(new THREE.Vector3(0, 0.8, 1.2));
+    _startCameraTransition(cameraPos, target);
+    return;
+  }
+  if (Array.isArray(moonKm) && moonKm.length === 3) {
+    focusCameraPreset('moon-approach', { moonKm });
+    return;
+  }
+  focusCameraPreset('earth-centered');
 }
 
 export function setOrionManeuverLevel(level) {
@@ -939,18 +979,54 @@ function _tickFollowCamera() {
   const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
     ? _orionVelocityScene.clone().normalize()
     : new THREE.Vector3(1, 0, 0);
-  const forwardLead = _followCameraMode === 'cinematic' ? 0.52 : 0.38;
-  const upLift = _followCameraMode === 'cinematic' ? 0.74 : 0.55;
-  const trailingDistance = _followCameraMode === 'cinematic' ? 1.7 : 1.35;
+  const isCinematic = _followCameraMode === 'cinematic';
+  const isSide = _followCameraMode === 'side';
+  const isEarthFrame = _followCameraMode === 'earth-frame';
+  const isMoonFrame = _followCameraMode === 'moon-frame';
+  const forwardLead = isCinematic ? 0.52 : (isSide ? 0.2 : 0.38);
+  const upLift = isCinematic ? 0.74 : (isSide ? 0.48 : 0.55);
+  const trailingDistance = isCinematic ? 1.7 : (isSide ? 1.15 : 1.35);
+  const sideAxis = new THREE.Vector3().crossVectors(velocityDir, ORION_WORLD_UP).normalize();
   const trailing = velocityDir.clone().multiplyScalar(-trailingDistance * _followCameraDistanceScale);
   const lead = velocityDir.clone().multiplyScalar(forwardLead * _followCameraDistanceScale);
   const up = new THREE.Vector3(0, 1, 0).multiplyScalar(upLift * _followCameraDistanceScale);
-  const desired = target.clone().add(trailing).add(up);
+  let desired = target.clone().add(trailing).add(up);
+  if (isSide && sideAxis.lengthSq() > 1e-8) {
+    desired.add(sideAxis.multiplyScalar(1.35 * _followCameraDistanceScale));
+  } else if (isEarthFrame) {
+    desired = target.clone().add(new THREE.Vector3(0.95, 0.55, 1.05).multiplyScalar(_followCameraDistanceScale));
+  } else if (isMoonFrame && _moonMesh) {
+    const towardMoon = _moonMesh.position.clone().sub(target).normalize();
+    desired = target.clone().add(towardMoon.multiplyScalar(-1.45 * _followCameraDistanceScale)).add(up);
+  }
   const desiredTarget = target.clone().add(lead);
-  const camLerp = _followCameraMode === 'cinematic' ? 0.05 : 0.075;
-  const tgtLerp = _followCameraMode === 'cinematic' ? 0.09 : 0.12;
+  const camLerp = isCinematic ? 0.05 : 0.075;
+  const tgtLerp = isCinematic ? 0.09 : 0.12;
   _camera.position.lerp(desired, camLerp);
   _controls.target.lerp(desiredTarget, tgtLerp);
+}
+
+function _tryLoadOrionModel() {
+  if (!_orionMarker) return;
+  const loader = new GLTFLoader();
+  const url = new URL('../../assets/models/orion.glb', import.meta.url).toString();
+  loader.load(
+    url,
+    (gltf) => {
+      if (!_orionMarker || !gltf?.scene) return;
+      _orionModelRoot = gltf.scene;
+      _orionModelRoot.scale.setScalar(0.42);
+      _orionModelRoot.rotation.set(0, 0, 0);
+      _orionModelRoot.position.set(0, 0, 0);
+      _orionMarker.add(_orionModelRoot);
+      if (_orionDetailGroup) _orionDetailGroup.visible = false;
+      if (_orionSimpleMesh) _orionSimpleMesh.visible = false;
+    },
+    undefined,
+    () => {
+      // Keep procedural capsule if GLB is unavailable.
+    },
+  );
 }
 
 function _tickAutoExposure() {
