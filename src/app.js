@@ -16,6 +16,7 @@ import {
   resetSceneDynamicState,
   showFallbackBodies,
   setPerformanceMode,
+  setSceneLoadSmoothingMode,
   setFollowCameraEnabled,
   setFollowCameraMode,
   setEventMarkerClickHandler,
@@ -40,6 +41,7 @@ import {
   findSegment,
   findSampleIndex,
   getMissionTimeBounds,
+  getSortedSegmentBounds,
   sortEvents,
   getEventContext,
 } from './lib/dataLoader.js';
@@ -110,6 +112,7 @@ const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
 });
 const HUD_REFRESH_INTERVAL_MS = 200;
 const UI_REFRESH_INTERVAL_MS = 66;
+const DEFERRED_SCENE_HYDRATION_TIMEOUT_MS = 48;
 const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
@@ -119,7 +122,9 @@ function getDefaultFollowModeForMission(missionId) {
 const state = {
   activeMissionId: ACTIVE_MISSION_ID,
   missionData: null,
+  missionBounds: null,
   moonData: null,
+  moonBounds: null,
   events: [],
   missionPhases: [],
   eventMarkers: [],
@@ -127,6 +132,7 @@ const state = {
   missionStopMs: 0,
   currentMs: 0,
   flatSamples: [],
+  sceneHydrated: false,
   playing: false,
   scrubbing: false,
   diagnostics: {
@@ -178,6 +184,7 @@ let _lastHudRefreshAt = 0;
 let _lastUiRefreshAt = 0;
 let _phoneFriendlyMql = null;
 let _phoneFriendlyAutoplayKey = '';
+let _sceneHydrationToken = 0;
 
 bootstrapApp();
 
@@ -1564,6 +1571,7 @@ async function selectMission(id) {
 
   setActiveTab(id);
   resetLoadedMissionState();
+  const sceneHydrationToken = _sceneHydrationToken;
 
   refs.sbTitle.textContent = mission.displayName;
   refs.sbSummary.textContent = mission.summary;
@@ -1573,52 +1581,57 @@ async function selectMission(id) {
   if (!mission.enabled) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
     setSidebarStatus('Mission JSON missing');
+    setSceneLoadSmoothingMode(false);
     renderArtemis3Content();
     renderArtemis5Content();
     return;
   }
 
   setSidebarStatus('Fallback scene active — waiting for mission data');
-  if (mission.id === 'artemis-3') {
-    try {
-      await loadArtemis3Model();
-    } catch (error) {
-      setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  if (mission.id === 'artemis-5') {
-    try {
-      await loadArtemis5Model();
-    } catch (error) {
-      setErrorMessage(`Artemis V model load failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
+  state.sceneHydrated = false;
+  setSceneLoadSmoothingMode(true);
   const dataPaths = getMissionDataPaths(mission);
+  const modelPromise = mission.id === 'artemis-3'
+    ? loadArtemis3Model().catch((error) => {
+      setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    })
+    : mission.id === 'artemis-5'
+      ? loadArtemis5Model().catch((error) => {
+        setErrorMessage(`Artemis V model load failed: ${error instanceof Error ? error.message : String(error)}`);
+        return null;
+      })
+      : Promise.resolve(null);
 
-  try {
-    state.missionData = await loadMissionData(dataPaths.normalizedPath);
-    state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
-  } catch (error) {
-    handleStartupError('Mission JSON load failed', error);
-    return;
-  }
+  const moonPromise = loadMissionData(dataPaths.moonPath).catch((error) => {
+    setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
+  const eventsPromise = loadJson(dataPaths.eventsPath).catch((error) => {
+    setErrorMessage(`Event JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  });
 
   let loadedEvents = null;
   try {
-    state.moonData = await loadMissionData(dataPaths.moonPath);
-    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
-  } catch (error) {
-    setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  try {
-    loadedEvents = await loadJson(dataPaths.eventsPath);
+    const [, missionData, moonData, eventsData] = await Promise.all([
+      modelPromise,
+      loadMissionData(dataPaths.normalizedPath),
+      moonPromise,
+      eventsPromise,
+    ]);
+    if (sceneHydrationToken !== _sceneHydrationToken) return;
+    state.missionData = missionData;
+    state.moonData = moonData;
+    loadedEvents = eventsData;
     state.events = sortEvents(loadedEvents);
+    state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
+    state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
     state.diagnostics.eventsLoaded = Boolean(loadedEvents);
   } catch (error) {
-    setErrorMessage(`Event JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
-    state.events = [];
-    state.diagnostics.eventsLoaded = false;
+    setSceneLoadSmoothingMode(false);
+    handleStartupError('Mission JSON load failed', error);
+    return;
   } finally {
     updateDebugOverlay();
   }
@@ -1626,6 +1639,7 @@ async function selectMission(id) {
   if (!state.missionData) {
     showOverlay('Mission JSON missing. Fallback scene remains active while data is unavailable.');
     setSidebarStatus('Mission JSON missing');
+    setSceneLoadSmoothingMode(false);
     showFallbackBodies();
     focusCameraPreset('fallback-overview');
     return;
@@ -1633,6 +1647,8 @@ async function selectMission(id) {
 
   hideOverlay();
   state.flatSamples = flattenSamples(state.missionData);
+  state.missionBounds = getSortedSegmentBounds(state.missionData);
+  state.moonBounds = getSortedSegmentBounds(state.moonData);
   const bounds = getMissionTimeBounds(state.missionData);
   state.missionStartMs = bounds?.startMs ?? 0;
   state.missionStopMs = bounds?.stopMs ?? 0;
@@ -1647,26 +1663,18 @@ async function selectMission(id) {
   setEventVoiceEnabledUi(state.ui.eventVoiceEnabled, { sync: false });
   setEventVoiceVolumeUi(state.ui.eventVoiceVolume, { sync: false });
 
-  setMissionTrailsBySegment(state.missionData.segments || []);
-  setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
-  try {
-    buildEventMarkers();
-  } catch (error) {
-    handleStartupError('Event marker build failed', error);
-    return;
-  }
-  refreshTimelineEventTicks();
   try {
     applyCameraPreset(state.ui.cameraPreset, { sync: false });
   } catch (error) {
     handleStartupError('Camera setup failed', error);
   }
-  updateScene();
+  updateScene({ forceHeavy: true });
   refreshMissionAnnotations(mission);
   renderArtemis3Content();
   renderArtemis5Content();
   applyInitialTimeOverrideFromUrl();
   if (state.ui.liveMode) setLiveModeUi(true, { sync: false, status: false });
+  scheduleDeferredSceneHydration(sceneHydrationToken);
   syncUrlState();
 
   const artemis3Profile = getArtemis3ProfileConfig(mission, state.ui.artemis3Mode);
@@ -1681,6 +1689,29 @@ async function selectMission(id) {
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
   if (!loadedEvents) setErrorMessage('Event JSON missing; continuing without event markers.');
+}
+
+function scheduleDeferredSceneHydration(token) {
+  const run = () => {
+    if (token !== _sceneHydrationToken) return;
+    try {
+      setMissionTrailsBySegment(state.missionData?.segments || []);
+      setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
+      buildEventMarkers();
+      refreshTimelineEventTicks();
+      state.sceneHydrated = true;
+      setSceneLoadSmoothingMode(false);
+      updateScene({ forceHeavy: true });
+    } catch (error) {
+      setSceneLoadSmoothingMode(false);
+      handleStartupError('Scene hydration failed', error);
+    }
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: DEFERRED_SCENE_HYDRATION_TIMEOUT_MS });
+    return;
+  }
+  window.setTimeout(run, DEFERRED_SCENE_HYDRATION_TIMEOUT_MS);
 }
 
 function startRafLoop() {
@@ -1757,8 +1788,8 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     _lastUiRefreshAt = nowPerf;
   }
 
-  const missionBounds = state.missionData?.__cachedSortedSegmentBounds || null;
-  const moonBounds = state.moonData?.__cachedSortedSegmentBounds || null;
+  const missionBounds = state.missionBounds?.length ? state.missionBounds : null;
+  const moonBounds = state.moonBounds?.length ? state.moonBounds : null;
   const segState = findSegment(state.missionData, state.currentMs, missionBounds);
   const moonState = getInterpolatedState(state.moonData, state.currentMs, moonBounds);
 
@@ -1775,7 +1806,7 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
   updateBodies(orionState?.positionKm || null, moonState?.positionKm || null, {
     orionVelocityKmS: orionState?.velocityKmS || null,
   });
-  if (shouldUpdateTrail) {
+  if (state.sceneHydrated && shouldUpdateTrail) {
     setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
     _lastTrailUpdateNow = now;
   }
@@ -1820,8 +1851,9 @@ function getInterpolatedState(data, tMs, segmentBounds = null) {
 
 function buildEventMarkers() {
   state.eventMarkers = [];
+  const missionBounds = state.missionBounds?.length ? state.missionBounds : null;
   for (const event of state.events) {
-    const segState = findSegment(state.missionData, event.epochMs);
+    const segState = findSegment(state.missionData, event.epochMs, missionBounds);
     if (!segState?.segment || segState.state === 'gap') continue;
     const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
     state.eventMarkers.push({ id: event.id, label: event.label, positionKm: segmentState.positionKm });
@@ -1851,13 +1883,17 @@ function refreshTimelineEventTicks() {
 }
 
 function resetLoadedMissionState() {
+  _sceneHydrationToken += 1;
   clearPerformanceCaches();
   state.missionData = null;
+  state.missionBounds = null;
   state.moonData = null;
+  state.moonBounds = null;
   state.events = [];
   state.missionPhases = [];
   state.eventMarkers = [];
   state.flatSamples = [];
+  state.sceneHydrated = false;
   state.missionStartMs = 0;
   state.missionStopMs = 0;
   state.currentMs = 0;
@@ -1874,6 +1910,7 @@ function resetLoadedMissionState() {
   _lastTrailUpdateNow = 0;
   _lastUrlSyncNow = 0;
   _lastZoomUiUpdateNow = 0;
+  setSceneLoadSmoothingMode(false);
 
   refs.timelineSlider.value = refs.timelineSlider.min;
   refs.sbUtc.textContent = '—';

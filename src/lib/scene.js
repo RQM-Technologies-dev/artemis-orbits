@@ -34,6 +34,8 @@ const DEFAULT_TONE_EXPOSURE = 1.24;
 const AUTO_EXPOSURE_MIN = 1.1;
 const AUTO_EXPOSURE_MAX = 1.6;
 const AUTO_EXPOSURE_SMOOTHING = 0.08;
+const SCENE_DYNAMIC_UPDATE_INTERVAL_MS = 33;
+const SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS = 75;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
@@ -106,6 +108,8 @@ let _sunGlowMidMaterial = null;
 let _sunGlowOuterMaterial = null;
 let _sunGlowFlareMaterial = null;
 let _pointerDown = null;
+let _sceneLoadSmoothing = false;
+let _lastSceneDynamicUpdateMs = 0;
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _tmpForward = new THREE.Vector3();
@@ -204,7 +208,7 @@ export function createScene(canvas) {
   _scene.add(_eventMarkerGroup);
   _scene.add(_moonTrajectoryGroup);
 
-  _starField = _makeStarField(3000);
+  _starField = _makeStarField(1800);
   _scene.add(_starField);
 
   const sunDirection = new THREE.Vector3(50, 30, 80).normalize();
@@ -406,16 +410,27 @@ export function resizeScene(width, height) {
 
 export function renderScene() {
   if (!_renderer) return;
+  const now = performance.now();
   _tickCameraTransition();
   _tickFollowCamera();
   _tickEarthCloudRotation();
-  _updateOrionLod();
-  _updateLightingForBodies();
-  _tickAutoExposure();
+  const dynamicInterval = _sceneLoadSmoothing ? SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS : SCENE_DYNAMIC_UPDATE_INTERVAL_MS;
+  if ((now - _lastSceneDynamicUpdateMs) >= dynamicInterval) {
+    _updateOrionLod();
+    _updateLightingForBodies();
+    _tickAutoExposure();
+    _lastSceneDynamicUpdateMs = now;
+  }
   _updateEventCalloutPosition();
   _controls.update();
   if (_composer && _bloomPass?.enabled) _composer.render();
   else _renderer.render(_scene, _camera);
+}
+
+export function setSceneLoadSmoothingMode(enabled) {
+  _sceneLoadSmoothing = Boolean(enabled);
+  _lastSceneDynamicUpdateMs = 0;
+  _refreshBloomEnabled();
 }
 
 export function setPerformanceMode(mode) {
@@ -433,10 +448,7 @@ export function setPerformanceMode(mode) {
   else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
   else _renderer.setPixelRatio(1);
   if (_starField) _starField.visible = effective !== 'low';
-  if (_bloomPass) {
-    const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
-    _bloomPass.enabled = bloomAllowed;
-  }
+  _refreshBloomEnabled();
   _performanceEffectiveMode = effective;
   _updateOrionLod();
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
@@ -772,10 +784,12 @@ function _makeStarField(count) {
     geo,
     new THREE.PointsMaterial({
       color: 0xe7f3ff,
-      size: 0.62,
-      sizeAttenuation: true,
+      size: 0.56,
+      sizeAttenuation: false,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.9,
+      depthWrite: false,
+      toneMapped: false,
     }),
   );
 }
@@ -1453,10 +1467,18 @@ function getVisualPresetSettings(preset) {
 function _applyBloomSettings(bloom) {
   if (!_bloomPass) return;
   const config = bloom || BLOOM_DISABLED;
-  _bloomPass.enabled = config.enabled !== false;
   _bloomPass.strength = Number.isFinite(config.strength) ? config.strength : 0;
   _bloomPass.radius = Number.isFinite(config.radius) ? config.radius : 0;
   _bloomPass.threshold = Number.isFinite(config.threshold) ? config.threshold : 1;
+  _refreshBloomEnabled();
+}
+
+function _refreshBloomEnabled() {
+  if (!_bloomPass) return;
+  const bloomAllowed = !_sceneLoadSmoothing
+    && _performanceEffectiveMode !== 'low'
+    && _visualPresetConfig?.bloom?.enabled !== false;
+  _bloomPass.enabled = bloomAllowed;
 }
 
 function _notifyZoomChange() {
