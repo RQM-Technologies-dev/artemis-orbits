@@ -13,8 +13,12 @@ import { kmToScene } from './units.js';
 
 const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
-const ORION_MARKER_KM = 420;
+const SUN_RADIUS_KM = 696_340;
+const SUN_EARTH_DISTANCE_KM = 149_597_870; // 1 AU
+const EARTH_CLOUD_LAYER_SCALE = 1.012;
+const ORION_MARKER_KM = 560;
 const ORION_HALO_KM = 520;
+const ORION_MODEL_SCALE = 0.58;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
@@ -46,11 +50,12 @@ const PLANET_TEXTURE_URLS = {
   earthColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_atmos_2048.jpg',
   earthNormal: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_normal_2048.jpg',
   earthSpecular: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_specular_2048.jpg',
+  earthClouds: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_clouds_1024.png',
   moonColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/moon_1024.jpg',
 };
 
 let _scene, _camera, _renderer, _controls;
-let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
+let _earthMesh, _earthCloudMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere, _sunMesh;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup, _moonTrajectoryGroup;
 let _starField;
 let _ambientLight = null;
@@ -112,34 +117,45 @@ export function createScene(canvas) {
   _scene = new THREE.Scene();
 
   const aspect = width / height;
-  _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
+  _camera = new THREE.PerspectiveCamera(45, aspect, 0.01, 30_000);
   _camera.position.set(0, 0, 8);
 
-  _ambientLight = new THREE.AmbientLight(0x88a9e0, 1.62);
+  _ambientLight = new THREE.AmbientLight(0xc2cada, 1.04);
   _scene.add(_ambientLight);
-  _sunLight = new THREE.DirectionalLight(0xffffff, 3.25);
-  _sunLight.position.set(50, 30, 80);
+  _sunLight = new THREE.DirectionalLight(0xfff3d4, 3.2);
   _scene.add(_sunLight);
-  _rimLight = new THREE.DirectionalLight(0x82a9f4, 1.02);
+  _rimLight = new THREE.DirectionalLight(0x9bb3df, 0.94);
   _rimLight.position.set(-30, -10, -50);
   _scene.add(_rimLight);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x8cb9ff,
-    emissive: 0x265089,
-    shininess: 24,
-    specular: 0x5a6272,
+    color: 0xffffff,
+    emissive: 0x090d12,
+    shininess: 34,
+    specular: 0x697583,
   });
   _earthMesh = new THREE.Mesh(earthGeo, earthMat);
   _earthMesh.position.set(0, 0, 0);
   _scene.add(_earthMesh);
 
+  const earthCloudGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM * EARTH_CLOUD_LAYER_SCALE), 48, 32);
+  const earthCloudMat = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+  });
+  _earthCloudMesh = new THREE.Mesh(earthCloudGeo, earthCloudMat);
+  _earthCloudMesh.position.copy(_earthMesh.position);
+  _scene.add(_earthCloudMesh);
+
   const atmosphereGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM * 1.05), 48, 32);
   const atmosphereMat = new THREE.MeshLambertMaterial({
-    color: 0x9fd3ff,
+    color: 0xbad8ff,
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.16,
     side: THREE.BackSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -164,7 +180,7 @@ export function createScene(canvas) {
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
   _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xb0d9ff, transparent: true, opacity: 0.24 }));
-  _orionHalo.visible = true;
+  _orionHalo.visible = false;
   _scene.add(_orionHalo);
 
   _fullTrailGroup = new THREE.Group();
@@ -179,13 +195,25 @@ export function createScene(canvas) {
   _starField = _makeStarField(3000);
   _scene.add(_starField);
 
+  const sunDirection = new THREE.Vector3(50, 30, 80).normalize();
+  const sunPosition = sunDirection.multiplyScalar(kmToScene(SUN_EARTH_DISTANCE_KM));
+  _sunMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(kmToScene(SUN_RADIUS_KM), 32, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff1bd }),
+  );
+  _sunMesh.position.copy(sunPosition);
+  _scene.add(_sunMesh);
+  _sunLight.position.copy(sunPosition);
+  _sunLight.target.position.set(0, 0, 0);
+  _scene.add(_sunLight.target);
+
   _controls = new OrbitControls(_camera, _renderer.domElement);
   _controls.enableDamping = true;
   _controls.dampingFactor = 0.08;
   _controls.enableZoom = true;
   _controls.zoomSpeed = 1.15;
   _controls.minDistance = 0.08;
-  _controls.maxDistance = 820;
+  _controls.maxDistance = 1_200;
 
   _renderer.domElement.addEventListener('pointerdown', _onPointerDown);
   _renderer.domElement.addEventListener('pointerup', _onPointerUp);
@@ -196,7 +224,7 @@ export function createScene(canvas) {
   _bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0, 0, 1);
   _composer.addPass(_bloomPass);
 
-  _loadPlanetTextures(earthMat, moonMat);
+  _loadPlanetTextures(earthMat, moonMat, earthCloudMat);
   setVisualPreset('standard');
   setPerformanceMode('auto');
   showFallbackBodies();
@@ -221,7 +249,7 @@ export function updateBodies(orionKm, moonKm, options = {}) {
     _orionHalo.position.set(sx, sy, sz);
     _updateOrionOrientation(_orionMarker.position);
     _orionMarker.visible = true;
-    _orionHalo.visible = true;
+    _orionHalo.visible = false;
   }
 
   const moonPosKm = moonKm || DEFAULT_MOON_POSITION_KM;
@@ -292,6 +320,7 @@ export function resetSceneDynamicState() {
 export function showFallbackBodies() {
   if (!_earthMesh || !_moonMesh || !_orionMarker || !_orionHalo) return;
   _earthMesh.visible = true;
+  if (_earthCloudMesh) _earthCloudMesh.visible = true;
   _moonMesh.visible = true;
   updateBodies(DEFAULT_ORION_POSITION_KM, DEFAULT_MOON_POSITION_KM);
 }
@@ -354,6 +383,7 @@ export function renderScene() {
   if (!_renderer) return;
   _tickCameraTransition();
   _tickFollowCamera();
+  _tickEarthCloudRotation();
   _updateOrionLod();
   _updateLightingForBodies();
   _tickAutoExposure();
@@ -494,6 +524,13 @@ export function setVisualPreset(preset) {
   if (_earthAtmosphere?.material) {
     _earthAtmosphere.material.color.setHex(settings.atmosphereColor);
     _earthAtmosphere.material.opacity = settings.atmosphereOpacity;
+  }
+  if (_earthCloudMesh?.material) {
+    _earthCloudMesh.material.color.setHex(settings.cloudColor);
+    _earthCloudMesh.material.opacity = settings.cloudOpacity;
+  }
+  if (_sunMesh?.material) {
+    _sunMesh.material.color.setHex(settings.sunColor);
   }
   if (_starField?.material) {
     _starField.material.color.setHex(settings.starColor);
@@ -922,7 +959,7 @@ function getSafeCanvasSize(canvas) {
   };
 }
 
-function _loadPlanetTextures(earthMat, moonMat) {
+function _loadPlanetTextures(earthMat, moonMat, earthCloudMat) {
   const loader = new THREE.TextureLoader();
   _loadTexture(loader, PLANET_TEXTURE_URLS.earthColor, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -931,12 +968,20 @@ function _loadPlanetTextures(earthMat, moonMat) {
   });
   _loadTexture(loader, PLANET_TEXTURE_URLS.earthNormal, (tex) => {
     earthMat.normalMap = tex;
-    earthMat.normalScale = new THREE.Vector2(0.65, 0.65);
+    earthMat.normalScale = new THREE.Vector2(0.9, 0.9);
     earthMat.needsUpdate = true;
   });
   _loadTexture(loader, PLANET_TEXTURE_URLS.earthSpecular, (tex) => {
     earthMat.specularMap = tex;
     earthMat.needsUpdate = true;
+  });
+  _loadTexture(loader, PLANET_TEXTURE_URLS.earthClouds, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const cloudMaterial = earthCloudMat || _earthCloudMesh?.material;
+    if (!cloudMaterial) return;
+    cloudMaterial.map = tex;
+    cloudMaterial.alphaMap = tex;
+    cloudMaterial.needsUpdate = true;
   });
   _loadTexture(loader, PLANET_TEXTURE_URLS.moonColor, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -1015,7 +1060,7 @@ function _tryLoadOrionModel() {
     (gltf) => {
       if (!_orionMarker || !gltf?.scene) return;
       _orionModelRoot = gltf.scene;
-      _orionModelRoot.scale.setScalar(0.42);
+      _orionModelRoot.scale.setScalar(ORION_MODEL_SCALE);
       _orionModelRoot.rotation.set(0, 0, 0);
       _orionModelRoot.position.set(0, 0, 0);
       _orionMarker.add(_orionModelRoot);
@@ -1049,6 +1094,10 @@ function _tickAutoExposure() {
     targetExposure,
     AUTO_EXPOSURE_SMOOTHING,
   );
+}
+
+function _tickEarthCloudRotation() {
+  if (_earthCloudMesh) _earthCloudMesh.rotation.y += 0.00008;
 }
 
 function _updateOrionOrientation(orionPositionScene) {
@@ -1179,20 +1228,23 @@ function getVisualPresetSettings(preset) {
       id: 'standard',
       baseExposure: 1.16,
       autoExposureSpread: 0.18,
-      earthColor: 0x7aa9f1,
-      earthEmissive: 0x295685,
-      earthSpecular: 0x4f596b,
-      earthShininess: 22,
+      earthColor: 0xffffff,
+      earthEmissive: 0x080b10,
+      earthSpecular: 0x6f7d8b,
+      earthShininess: 36,
       moonColor: 0xe0e6f3,
       moonEmissive: 0x414141,
       moonShininess: 9,
       orionColor: 0xffef84,
       orionHaloColor: 0xffefb9,
       orionHaloOpacity: 0.44,
-      atmosphereColor: 0x98ceff,
-      atmosphereOpacity: 0.31,
+      atmosphereColor: 0xb8d6ff,
+      atmosphereOpacity: 0.18,
+      cloudColor: 0xffffff,
+      cloudOpacity: 0.58,
+      sunColor: 0xfff1bd,
       starColor: 0xdeefff,
-      starOpacity: 0.9,
+      starOpacity: 0.95,
       starSize: 0.56,
       bloom: BLOOM_STANDARD,
     };
@@ -1202,20 +1254,23 @@ function getVisualPresetSettings(preset) {
       id: 'high-contrast',
       baseExposure: 1.22,
       autoExposureSpread: 0.2,
-      earthColor: 0x9fccff,
-      earthEmissive: 0x275891,
-      earthSpecular: 0x677285,
-      earthShininess: 28,
+      earthColor: 0xffffff,
+      earthEmissive: 0x090d13,
+      earthSpecular: 0x8a99a9,
+      earthShininess: 42,
       moonColor: 0xf5f6ff,
       moonEmissive: 0x3b3b3b,
       moonShininess: 12,
       orionColor: 0xfff59a,
       orionHaloColor: 0xfff4cf,
       orionHaloOpacity: 0.53,
-      atmosphereColor: 0xb9e0ff,
-      atmosphereOpacity: 0.36,
+      atmosphereColor: 0xc8e1ff,
+      atmosphereOpacity: 0.2,
+      cloudColor: 0xffffff,
+      cloudOpacity: 0.64,
+      sunColor: 0xfff3c8,
       starColor: 0xf1f7ff,
-      starOpacity: 0.98,
+      starOpacity: 1,
       starSize: 0.6,
       bloom: BLOOM_CONTRAST,
     };
@@ -1224,20 +1279,23 @@ function getVisualPresetSettings(preset) {
     id: 'bright',
     baseExposure: 1.28,
     autoExposureSpread: 0.22,
-    earthColor: 0x8cb9ff,
-    earthEmissive: 0x2d629d,
-    earthSpecular: 0x5a6272,
-    earthShininess: 24,
+    earthColor: 0xffffff,
+    earthEmissive: 0x090d12,
+    earthSpecular: 0x7a8796,
+    earthShininess: 38,
     moonColor: 0xf0f2ff,
     moonEmissive: 0x4d4d4d,
     moonShininess: 10,
     orionColor: 0xfff18f,
     orionHaloColor: 0xfff3c0,
     orionHaloOpacity: 0.5,
-    atmosphereColor: 0xaddaff,
-    atmosphereOpacity: 0.35,
+    atmosphereColor: 0xc1dcff,
+    atmosphereOpacity: 0.19,
+    cloudColor: 0xffffff,
+    cloudOpacity: 0.61,
+    sunColor: 0xfff1bb,
     starColor: 0xe7f3ff,
-    starOpacity: 0.97,
+    starOpacity: 1,
     starSize: 0.6,
     bloom: BLOOM_BRIGHT,
   };
