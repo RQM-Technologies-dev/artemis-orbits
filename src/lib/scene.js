@@ -1193,7 +1193,7 @@ function getVisualPresetSettings(preset) {
       atmosphereColor: 0x98ceff,
       atmosphereOpacity: 0.31,
       starColor: 0xdeefff,
-      starOpacity: 0.9,
+      starOpacity: 0.95,
       starSize: 0.56,
       bloom: BLOOM_STANDARD,
     };
@@ -1216,7 +1216,7 @@ function getVisualPresetSettings(preset) {
       atmosphereColor: 0xb9e0ff,
       atmosphereOpacity: 0.36,
       starColor: 0xf1f7ff,
-      starOpacity: 0.98,
+      starOpacity: 1,
       starSize: 0.6,
       bloom: BLOOM_CONTRAST,
     };
@@ -1238,7 +1238,7 @@ function getVisualPresetSettings(preset) {
     atmosphereColor: 0xaddaff,
     atmosphereOpacity: 0.35,
     starColor: 0xe7f3ff,
-    starOpacity: 0.97,
+    starOpacity: 1,
     starSize: 0.6,
     bloom: BLOOM_BRIGHT,
   };
