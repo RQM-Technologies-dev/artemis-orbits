@@ -12,8 +12,8 @@ import { kmToScene } from './units.js';
 
 const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
-const ORION_MARKER_KM = 260;
-const ORION_HALO_KM = 430;
+const ORION_MARKER_KM = 420;
+const ORION_HALO_KM = 520;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
@@ -28,9 +28,9 @@ const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
 const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
-const ORION_LOD_HIGH_DISTANCE = 18;
-const ORION_LOD_BALANCED_DISTANCE = 12;
-const ORION_LOD_LOW_DISTANCE = 8;
+const ORION_LOD_HIGH_DISTANCE = 34;
+const ORION_LOD_BALANCED_DISTANCE = 24;
+const ORION_LOD_LOW_DISTANCE = 16;
 const EVENT_CALLOUT_LIFT_KM = 1_000;
 const OUTBOUND_ROUTE_STYLE = { color: 0x79bcff, opacity: 0.44 };
 const RETURN_ROUTE_STYLE = { color: 0xffb38a, opacity: 0.44 };
@@ -160,7 +160,7 @@ export function createScene(canvas) {
   _scene.add(_orionMarker);
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
-  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffefb0, transparent: true, opacity: 0.42 }));
+  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0x9ecbff, transparent: true, opacity: 0.16 }));
   _orionHalo.visible = true;
   _scene.add(_orionHalo);
 
@@ -685,9 +685,9 @@ function _makeOrionCapsule(radius) {
     specular: 0x2f2a24,
   });
   _orionAccentMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffef78,
+    color: 0xb6dbff,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.55,
   });
   _orionServiceMaterial = new THREE.MeshPhongMaterial({
     color: 0xa2acbf,
