@@ -234,6 +234,10 @@ function getDomRefs() {
     btnShareReddit: pickOptional('btn-share-reddit'),
     btnShareLinkedin: pickOptional('btn-share-linkedin'),
     btnShareEmail: pickOptional('btn-share-email'),
+    embedLinkOutput: pickOptional('embed-link-output'),
+    embedIframeOutput: pickOptional('embed-iframe-output'),
+    btnCopyEmbedLink: pickOptional('btn-copy-embed-link'),
+    btnCopyEmbedIframe: pickOptional('btn-copy-embed-iframe'),
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
     btnCapture: pickOptional('btn-export-image'),
@@ -1040,6 +1044,7 @@ function wireUiEvents() {
     }
   });
   wireSocialShareButtons();
+  wireEmbedTools();
 
   refs.timelineSlider.addEventListener('mousedown', () => { state.scrubbing = true; });
   refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
@@ -1103,6 +1108,38 @@ function wireSocialShareButtons() {
       setSidebarStatus('Opened email share draft');
     });
   }
+}
+
+function wireEmbedTools() {
+  if (!refs.embedIframeOutput || !refs.embedLinkOutput) return;
+  updateEmbedSnippets();
+
+  refs.btnCopyEmbedIframe?.addEventListener('click', async () => {
+    updateEmbedSnippets();
+    try {
+      await navigator.clipboard.writeText(refs.embedIframeOutput.value);
+      setSidebarStatus('Embed code copied');
+    } catch {
+      setSidebarStatus('Unable to copy embed code in this browser');
+    }
+  });
+
+  refs.btnCopyEmbedLink?.addEventListener('click', async () => {
+    updateEmbedSnippets();
+    try {
+      await navigator.clipboard.writeText(refs.embedLinkOutput.value);
+      setSidebarStatus('Embed link copied');
+    } catch {
+      setSidebarStatus('Unable to copy embed link in this browser');
+    }
+  });
+}
+
+function updateEmbedSnippets() {
+  if (!refs?.embedIframeOutput || !refs?.embedLinkOutput) return;
+  const url = window.location.href;
+  refs.embedLinkOutput.value = `<a href="${url}" target="_blank" rel="noopener noreferrer">Explore NASA Artemis Orbits</a>`;
+  refs.embedIframeOutput.value = `<iframe src="${url}" width="960" height="540" style="border:1px solid #1e2a40;border-radius:8px;" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen title="NASA Artemis Orbits"></iframe>`;
 }
 
 function setActiveTab(id) {
@@ -1708,6 +1745,7 @@ function syncUrlState() {
   if (_lastSyncedUrl !== next) {
     history.replaceState(null, '', next);
     _lastSyncedUrl = next;
+    updateEmbedSnippets();
   }
 }
 

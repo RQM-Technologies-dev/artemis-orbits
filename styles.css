@@ -419,6 +419,26 @@ body {
   color: #d9e7ff;
   line-height: 1.42;
 }
+.embed-tools {
+  margin-top: 2px;
+}
+.embed-snippet-output {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #0e1627;
+  color: #cfe2ff;
+  font-family: 'Courier New', monospace;
+  font-size: .7rem;
+  line-height: 1.4;
+  padding: 7px 8px;
+}
+.embed-snippet-output:focus-visible {
+  outline: 2px solid #8fc5ff;
+  outline-offset: 2px;
+}
 
 .hidden { display: none !important; }
 
