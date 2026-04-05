@@ -26,6 +26,16 @@ const AUTO_EXPOSURE_MAX = 1.45;
 const AUTO_EXPOSURE_SMOOTHING = 0.08;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
+const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
+const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
+const ORION_LOD_HIGH_DISTANCE = 18;
+const ORION_LOD_BALANCED_DISTANCE = 12;
+const ORION_LOD_LOW_DISTANCE = 8;
+const EVENT_CALLOUT_LIFT_KM = 1_000;
+const OUTBOUND_ROUTE_STYLE = { color: 0x79bcff, opacity: 0.44 };
+const RETURN_ROUTE_STYLE = { color: 0xffb38a, opacity: 0.44 };
+const OUTBOUND_TRAVERSED_STYLE = { color: 0xbdeaff, opacity: 1 };
+const RETURN_TRAVERSED_STYLE = { color: 0xffd4bf, opacity: 1 };
 const BLOOM_DISABLED = { enabled: false, strength: 0, radius: 0, threshold: 1 };
 const BLOOM_STANDARD = { enabled: true, strength: 0.13, radius: 0.55, threshold: 0.88 };
 const BLOOM_BRIGHT = { enabled: true, strength: 0.17, radius: 0.57, threshold: 0.84 };
@@ -40,8 +50,33 @@ const PLANET_TEXTURE_URLS = {
 
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere;
-let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup;
+let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup, _moonTrajectoryGroup;
 let _starField;
+let _ambientLight = null;
+let _sunLight = null;
+let _rimLight = null;
+let _orionBodyMaterial = null;
+let _orionNoseMaterial = null;
+let _orionShieldMaterial = null;
+let _orionAccentMaterial = null;
+let _orionServiceMaterial = null;
+let _orionPanelMaterial = null;
+let _orionEngineMaterial = null;
+let _orionTrussMaterial = null;
+let _orionSimpleMaterial = null;
+let _orionPlumeMaterial = null;
+let _orionDetailGroup = null;
+let _orionSimpleMesh = null;
+let _orionPlumeMesh = null;
+let _orionAttitudeReference = 'velocity';
+let _orionVelocityScene = new THREE.Vector3(1, 0, 0);
+let _orionManeuverLevel = 0;
+let _followCameraMode = 'standard';
+let _performanceEffectiveMode = 'balanced';
+let _trajectorySplitMs = null;
+let _eventCalloutSprite = null;
+let _eventCalloutTexture = null;
+let _eventCalloutLabel = '';
 let _composer = null;
 let _bloomPass = null;
 let _cameraTransition = null;
@@ -54,6 +89,11 @@ let _zoomChangeListener = null;
 let _pointerDown = null;
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
+const _tmpForward = new THREE.Vector3();
+const _tmpSide = new THREE.Vector3();
+const _tmpUp = new THREE.Vector3();
+const _tmpMoonOffset = new THREE.Vector3();
+const _tmpOrientation = new THREE.Quaternion();
 
 export function createScene(canvas) {
   if (!canvas) throw new Error('createScene(canvas) requires a valid canvas element');
@@ -62,7 +102,7 @@ export function createScene(canvas) {
   _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   _renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   _renderer.setSize(width, height, false);
-  _renderer.setClearColor(0x060d1a);
+  _renderer.setClearColor(0x000000);
   _renderer.outputColorSpace = THREE.SRGBColorSpace;
   _renderer.toneMapping = THREE.ACESFilmicToneMapping;
   _renderer.toneMappingExposure = DEFAULT_TONE_EXPOSURE;
@@ -73,10 +113,14 @@ export function createScene(canvas) {
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _scene.add(new THREE.AmbientLight(0x88b1ff, 1.95));
-  const sun = new THREE.DirectionalLight(0xffffff, 3.05);
-  sun.position.set(50, 30, 80);
-  _scene.add(sun);
+  _ambientLight = new THREE.AmbientLight(0x7e9cd1, 1.35);
+  _scene.add(_ambientLight);
+  _sunLight = new THREE.DirectionalLight(0xffffff, 2.85);
+  _sunLight.position.set(50, 30, 80);
+  _scene.add(_sunLight);
+  _rimLight = new THREE.DirectionalLight(0x6f93d9, 0.78);
+  _rimLight.position.set(-30, -10, -50);
+  _scene.add(_rimLight);
 
   const earthGeo = new THREE.SphereGeometry(kmToScene(EARTH_RADIUS_KM), 48, 32);
   const earthMat = new THREE.MeshPhongMaterial({
@@ -111,8 +155,7 @@ export function createScene(canvas) {
   _moonMesh.position.set(kmToScene(DEFAULT_MOON_POSITION_KM[0]), 0, 0);
   _scene.add(_moonMesh);
 
-  const orionGeo = new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM), 16, 12);
-  _orionMarker = new THREE.Mesh(orionGeo, new THREE.MeshBasicMaterial({ color: 0xffef78 }));
+  _orionMarker = _makeOrionCapsule(kmToScene(ORION_MARKER_KM));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
 
@@ -124,9 +167,11 @@ export function createScene(canvas) {
   _fullTrailGroup = new THREE.Group();
   _traversedTrailGroup = new THREE.Group();
   _eventMarkerGroup = new THREE.Group();
+  _moonTrajectoryGroup = new THREE.Group();
   _scene.add(_fullTrailGroup);
   _scene.add(_traversedTrailGroup);
   _scene.add(_eventMarkerGroup);
+  _scene.add(_moonTrajectoryGroup);
 
   _starField = _makeStarField(3000);
   _scene.add(_starField);
@@ -155,15 +200,23 @@ export function createScene(canvas) {
   focusCameraPreset('fallback-overview', { instant: true });
 }
 
-export function updateBodies(orionKm, moonKm) {
+export function updateBodies(orionKm, moonKm, options = {}) {
   if (!_orionMarker || !_orionHalo || !_moonMesh || !_earthMesh) return;
   const orionPosKm = orionKm || DEFAULT_ORION_POSITION_KM;
   if (orionPosKm) {
     const sx = kmToScene(orionPosKm[0]);
     const sy = kmToScene(orionPosKm[1]);
     const sz = kmToScene(orionPosKm[2]);
+    if (Array.isArray(options.orionVelocityKmS) && options.orionVelocityKmS.length === 3) {
+      _orionVelocityScene.set(
+        kmToScene(options.orionVelocityKmS[0]),
+        kmToScene(options.orionVelocityKmS[1]),
+        kmToScene(options.orionVelocityKmS[2]),
+      );
+    }
     _orionMarker.position.set(sx, sy, sz);
     _orionHalo.position.set(sx, sy, sz);
+    _updateOrionOrientation(_orionMarker.position);
     _orionMarker.visible = true;
     _orionHalo.visible = true;
   }
@@ -174,8 +227,11 @@ export function updateBodies(orionKm, moonKm) {
 
 export function setMissionTrailsBySegment(segments) {
   clearGroup(_fullTrailGroup);
+  _trajectorySplitMs = _computeTrajectorySplitMs(segments);
   for (const seg of segments || []) {
-    const line = makeLineFromSamples(seg.samples || [], { color: 0x79bcff, opacity: 0.42, linewidth: 1 });
+    const phase = _getTrajectoryPhaseForSegment(seg);
+    const style = phase === 'return' ? RETURN_ROUTE_STYLE : OUTBOUND_ROUTE_STYLE;
+    const line = makeLineFromSamples(seg.samples || [], { color: style.color, opacity: style.opacity, linewidth: 1 });
     if (line) _fullTrailGroup.add(line);
   }
 }
@@ -185,8 +241,18 @@ export function setTraversedTrailBySegment(segments, currentMs) {
   for (const seg of segments || []) {
     const traversed = getTraversedSamples(seg.samples || [], currentMs);
     if (traversed.length < 2) continue;
-    const line = makeLineFromSamples(traversed, { color: 0xbdeaff, opacity: 1, linewidth: 2 });
+    const phase = _getTrajectoryPhaseForSegment(seg);
+    const style = phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE;
+    const line = makeLineFromSamples(traversed, { color: style.color, opacity: style.opacity, linewidth: 2 });
     if (line) _traversedTrailGroup.add(line);
+  }
+}
+
+export function setMoonTrajectoryBySegment(segments) {
+  clearGroup(_moonTrajectoryGroup);
+  for (const seg of segments || []) {
+    const line = makeLineFromSamples(seg.samples || [], { color: 0xd7dbff, opacity: 0.56, linewidth: 1 });
+    if (line) _moonTrajectoryGroup.add(line);
   }
 }
 
@@ -214,6 +280,10 @@ export function resetSceneDynamicState() {
   clearGroup(_fullTrailGroup);
   clearGroup(_traversedTrailGroup);
   clearGroup(_eventMarkerGroup);
+  clearGroup(_moonTrajectoryGroup);
+  _trajectorySplitMs = null;
+  setOrionManeuverLevel(0);
+  setActiveEventCallout(null);
 }
 
 export function showFallbackBodies() {
@@ -281,7 +351,10 @@ export function renderScene() {
   if (!_renderer) return;
   _tickCameraTransition();
   _tickFollowCamera();
+  _updateOrionLod();
+  _updateLightingForBodies();
   _tickAutoExposure();
+  _updateEventCalloutPosition();
   _controls.update();
   if (_composer && _bloomPass?.enabled) _composer.render();
   else _renderer.render(_scene, _camera);
@@ -306,6 +379,8 @@ export function setPerformanceMode(mode) {
     const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
     _bloomPass.enabled = bloomAllowed;
   }
+  _performanceEffectiveMode = effective;
+  _updateOrionLod();
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
   _composer?.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT);
 }
@@ -408,7 +483,7 @@ export function setVisualPreset(preset) {
     _moonMesh.material.emissive.setHex(settings.moonEmissive);
     _moonMesh.material.shininess = settings.moonShininess;
   }
-  if (_orionMarker?.material) _orionMarker.material.color.setHex(settings.orionColor);
+  _applyOrionCapsuleVisual(settings.orionColor);
   if (_orionHalo?.material) {
     _orionHalo.material.color.setHex(settings.orionHaloColor);
     _orionHalo.material.opacity = settings.orionHaloOpacity;
@@ -433,6 +508,61 @@ export function setEventMarkerClickHandler(handler) {
   _eventMarkerClickHandler = typeof handler === 'function' ? handler : null;
 }
 
+export function setFollowCameraMode(mode) {
+  _followCameraMode = mode === 'cinematic' ? 'cinematic' : 'standard';
+}
+
+export function setOrionManeuverLevel(level) {
+  _orionManeuverLevel = THREE.MathUtils.clamp(Number(level) || 0, 0, 1);
+  if (_orionPlumeMesh?.material) {
+    _orionPlumeMesh.visible = _orionManeuverLevel > 0.02;
+    _orionPlumeMesh.material.opacity = 0.08 + (_orionManeuverLevel * 0.55);
+  }
+}
+
+export function setActiveEventCallout(event) {
+  const label = event?.label ? String(event.label) : '';
+  if (!label) {
+    if (_eventCalloutSprite) _eventCalloutSprite.visible = false;
+    _eventCalloutLabel = '';
+    return;
+  }
+  if (label === _eventCalloutLabel && _eventCalloutSprite) {
+    _eventCalloutSprite.visible = true;
+    return;
+  }
+  _eventCalloutLabel = label;
+  const texture = _makeCalloutTexture(label);
+  if (_eventCalloutTexture) _eventCalloutTexture.dispose();
+  _eventCalloutTexture = texture;
+  if (!_eventCalloutSprite) {
+    _eventCalloutSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+    _eventCalloutSprite.renderOrder = 12;
+    _eventCalloutSprite.visible = true;
+    _scene?.add(_eventCalloutSprite);
+  } else {
+    _eventCalloutSprite.material.map = texture;
+    _eventCalloutSprite.material.needsUpdate = true;
+    _eventCalloutSprite.visible = true;
+  }
+  _eventCalloutSprite.scale.set(0.62, 0.18, 1);
+}
+
+export function captureSceneImage() {
+  if (!_renderer || !_camera || !_scene) return null;
+  try {
+    _renderer.render(_scene, _camera);
+    return _renderer.domElement.toDataURL('image/png');
+  } catch {
+    return null;
+  }
+}
+
+export function setOrionAttitudeReference(reference = 'velocity') {
+  const r = String(reference || 'velocity');
+  _orionAttitudeReference = (r === 'moon' || r === 'earth') ? r : 'velocity';
+}
+
 function makeLineFromSamples(samples, { color, opacity }) {
   if (!samples || samples.length < 2) return null;
   const vertices = new Float32Array(samples.length * 3);
@@ -448,6 +578,31 @@ function makeLineFromSamples(samples, { color, opacity }) {
     geo,
     new THREE.LineBasicMaterial({ color, transparent: true, opacity }),
   );
+}
+
+function _computeTrajectorySplitMs(segments) {
+  let farthest = null;
+  let maxDistance = -1;
+  for (const seg of segments || []) {
+    for (const sample of seg?.samples || []) {
+      const p = sample.positionKm;
+      if (!p || p.length < 3) continue;
+      const d = (p[0] ** 2) + (p[1] ** 2) + (p[2] ** 2);
+      if (d > maxDistance) {
+        maxDistance = d;
+        farthest = sample.epochMs;
+      }
+    }
+  }
+  return Number.isFinite(farthest) ? farthest : null;
+}
+
+function _getTrajectoryPhaseForSegment(segment) {
+  if (!_trajectorySplitMs) return 'outbound';
+  const samples = segment?.samples || [];
+  if (!samples.length) return 'outbound';
+  const midMs = Math.round((samples[0].epochMs + samples[samples.length - 1].epochMs) * 0.5);
+  return midMs > _trajectorySplitMs ? 'return' : 'outbound';
 }
 
 function getTraversedSamples(samples, currentMs) {
@@ -496,6 +651,221 @@ function _makeStarField(count) {
       opacity: 0.9,
     }),
   );
+}
+
+function _makeOrionCapsule(radius) {
+  const stack = new THREE.Group();
+  const radialSegments = 20;
+  const crewRadiusTop = radius * 0.55;
+  const crewRadiusBottom = radius * 0.8;
+  const crewHeight = radius * 1.0;
+  const noseHeight = radius * 0.75;
+  const shieldHeight = radius * 0.18;
+  const serviceRadius = radius * 0.56;
+  const serviceHeight = radius * 0.8;
+  const engineHeight = radius * 0.42;
+  const engineRadius = radius * 0.17;
+
+  _orionBodyMaterial = new THREE.MeshPhongMaterial({
+    color: 0xdce3ee,
+    emissive: 0x1f2734,
+    shininess: 40,
+    specular: 0x98a5b8,
+  });
+  _orionNoseMaterial = new THREE.MeshPhongMaterial({
+    color: 0xeaf0f7,
+    emissive: 0x1d2330,
+    shininess: 48,
+    specular: 0xa8b4c5,
+  });
+  _orionShieldMaterial = new THREE.MeshPhongMaterial({
+    color: 0x5a4333,
+    emissive: 0x1e1510,
+    shininess: 10,
+    specular: 0x2f2a24,
+  });
+  _orionAccentMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffef78,
+    transparent: true,
+    opacity: 0.8,
+  });
+  _orionServiceMaterial = new THREE.MeshPhongMaterial({
+    color: 0xa2acbf,
+    emissive: 0x1a2130,
+    shininess: 22,
+    specular: 0x667087,
+  });
+  _orionPanelMaterial = new THREE.MeshPhongMaterial({
+    color: 0x4f6da6,
+    emissive: 0x0d1730,
+    shininess: 55,
+    specular: 0x9cb9f1,
+    side: THREE.DoubleSide,
+  });
+  _orionEngineMaterial = new THREE.MeshPhongMaterial({
+    color: 0x7e7263,
+    emissive: 0x231d17,
+    shininess: 16,
+    specular: 0x473f35,
+  });
+  _orionTrussMaterial = new THREE.MeshPhongMaterial({
+    color: 0x8894a9,
+    emissive: 0x171e2a,
+    shininess: 18,
+    specular: 0x596277,
+  });
+
+  const crewBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(crewRadiusTop, crewRadiusBottom, crewHeight, radialSegments, 1, false),
+    _orionBodyMaterial,
+  );
+  stack.add(crewBody);
+
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(crewRadiusTop, noseHeight, radialSegments),
+    _orionNoseMaterial,
+  );
+  nose.position.y = (crewHeight * 0.5) + (noseHeight * 0.5) - (radius * 0.04);
+  stack.add(nose);
+
+  const heatShield = new THREE.Mesh(
+    new THREE.CylinderGeometry(crewRadiusBottom * 1.07, crewRadiusBottom * 1.12, shieldHeight, radialSegments),
+    _orionShieldMaterial,
+  );
+  heatShield.position.y = -((crewHeight * 0.5) + (shieldHeight * 0.5) - (radius * 0.08));
+  stack.add(heatShield);
+
+  const dockingRing = new THREE.Mesh(
+    new THREE.TorusGeometry(crewRadiusTop * 0.85, radius * 0.04, 10, 24),
+    _orionAccentMaterial,
+  );
+  dockingRing.rotation.x = Math.PI / 2;
+  dockingRing.position.y = (crewHeight * 0.5) + (radius * 0.04);
+  stack.add(dockingRing);
+
+  const serviceY = heatShield.position.y - (shieldHeight * 0.5) - (serviceHeight * 0.5) + (radius * 0.04);
+  const serviceModule = new THREE.Mesh(
+    new THREE.CylinderGeometry(serviceRadius * 0.97, serviceRadius, serviceHeight, radialSegments, 1, false),
+    _orionServiceMaterial,
+  );
+  serviceModule.position.y = serviceY;
+  stack.add(serviceModule);
+
+  const truss = new THREE.Mesh(
+    new THREE.TorusGeometry(serviceRadius * 1.02, radius * 0.03, 8, 24),
+    _orionTrussMaterial,
+  );
+  truss.rotation.x = Math.PI / 2;
+  truss.position.y = serviceY + (serviceHeight * 0.28);
+  stack.add(truss);
+
+  const engineBell = new THREE.Mesh(
+    new THREE.ConeGeometry(engineRadius, engineHeight, radialSegments),
+    _orionEngineMaterial,
+  );
+  engineBell.rotation.x = Math.PI;
+  engineBell.position.y = serviceY - (serviceHeight * 0.5) - (engineHeight * 0.45);
+  stack.add(engineBell);
+
+  const panelLength = radius * 0.95;
+  const panelWidth = radius * 0.24;
+  const panelThickness = radius * 0.03;
+  const panelOffset = serviceRadius + (panelLength * 0.5) + (radius * 0.09);
+  const panelY = serviceY;
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI * 2 * i) / 4;
+    const panelPivot = new THREE.Group();
+    panelPivot.position.y = panelY;
+    panelPivot.rotation.y = angle;
+
+    const boom = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.024, radius * 0.024, panelOffset * 0.78, 8),
+      _orionTrussMaterial,
+    );
+    boom.rotation.z = Math.PI / 2;
+    boom.position.x = panelOffset * 0.39;
+    panelPivot.add(boom);
+
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(panelLength, panelWidth, panelThickness),
+      _orionPanelMaterial,
+    );
+    panel.position.x = panelOffset;
+    panel.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.05;
+    panelPivot.add(panel);
+
+    stack.add(panelPivot);
+  }
+
+  _orionDetailGroup = stack;
+  _orionSimpleMaterial = new THREE.MeshPhongMaterial({
+    color: 0xe3e8f2,
+    emissive: 0x1a2230,
+    shininess: 30,
+    specular: 0x8e9db5,
+  });
+  _orionSimpleMesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(radius * 0.56, radius * 0.78, 8, 14),
+    _orionSimpleMaterial,
+  );
+  _orionSimpleMesh.visible = false;
+  stack.add(_orionSimpleMesh);
+
+  _orionPlumeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x8fd4ff,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  _orionPlumeMesh = new THREE.Mesh(
+    new THREE.ConeGeometry(radius * 0.18, radius * 0.85, 18),
+    _orionPlumeMaterial,
+  );
+  _orionPlumeMesh.rotation.x = Math.PI;
+  _orionPlumeMesh.position.y = -(crewHeight * 0.5 + serviceHeight * 0.95);
+  _orionPlumeMesh.visible = false;
+  stack.add(_orionPlumeMesh);
+
+  // Tilt slightly so the capsule silhouette reads in most camera angles.
+  stack.rotation.z = Math.PI * 0.08;
+  return stack;
+}
+
+function _applyOrionCapsuleVisual(orionColorHex) {
+  const accent = new THREE.Color(orionColorHex);
+  const bodyBase = new THREE.Color(0xdce3ee);
+  const noseBase = new THREE.Color(0xeaf0f7);
+  const serviceBase = new THREE.Color(0xa2acbf);
+  const panelBase = new THREE.Color(0x4f6da6);
+  const trussBase = new THREE.Color(0x8894a9);
+  if (_orionBodyMaterial) {
+    _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.18);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.06);
+  }
+  if (_orionNoseMaterial) {
+    _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.1);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.04);
+  }
+  if (_orionServiceMaterial) {
+    _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.15);
+    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.04);
+  }
+  if (_orionPanelMaterial) {
+    _orionPanelMaterial.color.copy(panelBase).lerp(accent, 0.08);
+    _orionPanelMaterial.emissive.copy(accent).multiplyScalar(0.02);
+  }
+  if (_orionTrussMaterial) {
+    _orionTrussMaterial.color.copy(trussBase).lerp(accent, 0.1);
+    _orionTrussMaterial.emissive.copy(accent).multiplyScalar(0.03);
+  }
+  if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
+  if (_orionSimpleMaterial) {
+    _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.16);
+    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.05);
+  }
+  if (_orionPlumeMaterial) _orionPlumeMaterial.color.copy(accent).lerp(new THREE.Color(0x8fd4ff), 0.55);
 }
 
 function getSafeCanvasSize(canvas) {
@@ -566,9 +936,14 @@ function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
   const target = _orionMarker.position.clone();
   _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
-  const desired = target.clone().add(new THREE.Vector3(1.2, 0.55, 1.35).multiplyScalar(_followCameraDistanceScale));
-  _camera.position.lerp(desired, 0.075);
-  _controls.target.lerp(target, 0.12);
+  const baseOffset = (_followCameraMode === 'cinematic')
+    ? new THREE.Vector3(1.55, 0.74, 1.7)
+    : new THREE.Vector3(1.2, 0.55, 1.35);
+  const desired = target.clone().add(baseOffset.multiplyScalar(_followCameraDistanceScale));
+  const camLerp = _followCameraMode === 'cinematic' ? 0.05 : 0.075;
+  const tgtLerp = _followCameraMode === 'cinematic' ? 0.09 : 0.12;
+  _camera.position.lerp(desired, camLerp);
+  _controls.target.lerp(target, tgtLerp);
 }
 
 function _tickAutoExposure() {
@@ -591,6 +966,94 @@ function _tickAutoExposure() {
     targetExposure,
     AUTO_EXPOSURE_SMOOTHING,
   );
+}
+
+function _updateOrionOrientation(orionPositionScene) {
+  if (!_orionMarker) return;
+  const velocityLenSq = _orionVelocityScene.lengthSq();
+  if (velocityLenSq < 1e-12) return;
+  _tmpForward.copy(_orionVelocityScene).normalize();
+  if (_orionAttitudeReference === 'earth') {
+    _tmpForward.copy(orionPositionScene).multiplyScalar(-1).normalize();
+  } else if (_orionAttitudeReference === 'moon' && _moonMesh) {
+    _tmpForward.copy(_moonMesh.position).sub(orionPositionScene).normalize();
+  }
+  _tmpSide.crossVectors(_tmpForward, ORION_WORLD_UP);
+  if (_tmpSide.lengthSq() < 1e-8) _tmpSide.set(1, 0, 0);
+  _tmpSide.normalize();
+  _tmpUp.crossVectors(_tmpSide, _tmpForward).normalize();
+  const basis = new THREE.Matrix4().makeBasis(_tmpSide, _tmpForward, _tmpUp);
+  _tmpOrientation.setFromRotationMatrix(basis);
+  _orionMarker.quaternion.slerp(_tmpOrientation, 0.16);
+}
+
+function _updateOrionLod() {
+  if (!_camera || !_orionMarker || !_orionDetailGroup || !_orionSimpleMesh) return;
+  const distance = _camera.position.distanceTo(_orionMarker.position);
+  const lodThreshold = _performanceEffectiveMode === 'high'
+    ? ORION_LOD_HIGH_DISTANCE
+    : (_performanceEffectiveMode === 'low' ? ORION_LOD_LOW_DISTANCE : ORION_LOD_BALANCED_DISTANCE);
+  const showDetail = distance <= lodThreshold;
+  for (const child of _orionDetailGroup.children) {
+    if (child === _orionSimpleMesh) continue;
+    if (child === _orionPlumeMesh && _orionManeuverLevel > 0.02) continue;
+    child.visible = showDetail;
+  }
+  _orionSimpleMesh.visible = !showDetail;
+}
+
+function _updateLightingForBodies() {
+  if (!_sunLight || !_rimLight || !_moonMesh || !_earthMesh) return;
+  _tmpMoonOffset.copy(_moonMesh.position).sub(_earthMesh.position);
+  const dist = Math.max(0.1, _tmpMoonOffset.length());
+  const norm = THREE.MathUtils.clamp(dist / kmToScene(430_000), 0, 1);
+  _sunLight.intensity = 2.25 + (1 - norm) * 0.75;
+  _rimLight.intensity = 0.58 + norm * 0.42;
+}
+
+function _updateEventCalloutPosition() {
+  if (!_eventCalloutSprite?.visible || !_orionMarker) return;
+  _eventCalloutSprite.position.copy(_orionMarker.position);
+  _eventCalloutSprite.position.y += kmToScene(EVENT_CALLOUT_LIFT_KM);
+}
+
+function _makeCalloutTexture(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(8, 14, 26, 0.88)';
+  roundRect(ctx, 8, 20, canvas.width - 16, canvas.height - 40, 34);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(159, 195, 255, 0.85)';
+  ctx.lineWidth = 6;
+  roundRect(ctx, 8, 20, canvas.width - 16, canvas.height - 40, 34);
+  ctx.stroke();
+  ctx.fillStyle = '#e7f2ff';
+  ctx.font = '600 74px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text.slice(0, 42), canvas.width / 2, canvas.height / 2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }
 
 function _onPointerDown(event) {
