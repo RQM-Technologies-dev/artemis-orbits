@@ -17,6 +17,19 @@
   <header id="app-header">
     <h1>NASA Artemis Orbits</h1>
     <p class="subtitle">Official OEM normalization + 3D browser playback shell</p>
+    <a
+      class="rqm-header-icon-link"
+      href="https://www.rqmtechnologies.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="RQM Technologies website"
+      title="RQM Technologies"
+    >
+      <svg class="rqm-header-icon" viewBox="0 0 64 64" role="img" aria-hidden="true" focusable="false">
+        <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" stroke-width="4.5" />
+        <circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-width="4.5" />
+      </svg>
+    </a>
     <div class="rqm-header-link-wrap">
       <a
         class="rqm-header-link"
@@ -31,30 +44,50 @@
   </header>
 
   <nav id="mission-nav" aria-label="Mission navigation">
-    <section id="mission-strip" aria-live="polite">
-      <h2 id="sb-mission-title">—</h2>
-      <p id="sb-mission-summary" class="muted">—</p>
-      <p id="sb-status-msg" class="status-msg">—</p>
-    </section>
     <div id="mission-tabs" role="tablist" aria-label="Mission selector"></div>
   </nav>
 
   <main id="app-main">
     <section id="scene-panel" aria-label="3D orbit viewer">
       <canvas id="three-canvas"></canvas>
+      <section id="mission-strip" aria-live="polite">
+        <h2 id="sb-mission-title">—</h2>
+        <p id="sb-mission-summary" class="muted">—</p>
+        <p id="sb-status-msg" class="status-msg">—</p>
+      </section>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
       <div id="scene-mode-disclaimer" class="scene-mode-disclaimer hidden" aria-live="polite"></div>
       <div id="scene-telemetry" aria-live="polite">
-        <div class="scene-phase" id="sb-phase">Phase: —</div>
-        <div class="scene-telem-row"><span class="scene-telem-label">UTC</span><span class="scene-telem-value" id="sb-utc">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">MET</span><span class="scene-telem-value" id="sb-met">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Sample / Mode</span><span class="scene-telem-value" id="sb-frame">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Samples</span><span class="scene-telem-value" id="sb-sample-count">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Speed</span><span class="scene-telem-value" id="sb-speed">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Earth distance</span><span class="scene-telem-value" id="sb-earth-dist">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Moon distance</span><span class="scene-telem-value" id="sb-moon-dist">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Next event</span><span class="scene-telem-value" id="sb-next-event">—</span></div>
-        <div class="scene-telem-row"><span class="scene-telem-label">Event</span><span class="scene-telem-value" id="sb-current-event">No events loaded</span></div>
+        <div class="scene-hud-meta">
+          <div class="scene-phase" id="sb-phase">Phase: —</div>
+          <div class="scene-telem-row"><span class="scene-telem-label">UTC</span><span class="scene-telem-value" id="sb-utc">—</span></div>
+          <div class="scene-telem-row"><span class="scene-telem-label">Sample / Mode</span><span class="scene-telem-value" id="sb-frame">—</span></div>
+          <div class="scene-telem-row"><span class="scene-telem-label">Samples</span><span class="scene-telem-value" id="sb-sample-count">—</span></div>
+        </div>
+
+        <div class="scene-hud-events">
+          <div class="scene-telem-row"><span class="scene-telem-label">Next event</span><span class="scene-telem-value" id="sb-next-event">—</span></div>
+          <div class="scene-telem-row"><span class="scene-telem-label">Event</span><span class="scene-telem-value" id="sb-current-event">No events loaded</span></div>
+        </div>
+
+        <div class="scene-hud-metrics" aria-label="Mission metric heads-up display">
+          <div class="scene-metric">
+            <span class="scene-metric-value" id="sb-met">—</span>
+            <span class="scene-metric-label">Mission elapsed time</span>
+          </div>
+          <div class="scene-metric">
+            <span class="scene-metric-value" id="sb-speed">—</span>
+            <span class="scene-metric-label">Velocity</span>
+          </div>
+          <div class="scene-metric">
+            <span class="scene-metric-value" id="sb-earth-dist">—</span>
+            <span class="scene-metric-label">Distance from Earth</span>
+          </div>
+          <div class="scene-metric">
+            <span class="scene-metric-value" id="sb-moon-dist">—</span>
+            <span class="scene-metric-label">Distance to Moon</span>
+          </div>
+        </div>
       </div>
       <div id="controls-hint" class="controls-hint hidden" role="dialog" aria-live="polite" aria-label="Viewer controls help">
         <p class="controls-hint-text">Drag to orbit, wheel or pinch to zoom, and use <strong>+</strong>/<strong>-</strong> keys for quick zoom.</p>
