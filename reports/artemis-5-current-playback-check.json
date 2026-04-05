@@ -1,0 +1,146 @@
+{
+  "missionId": "artemis-5-current",
+  "baseMissionId": "artemis-5",
+  "missionPath": "data/normalized/artemis-5-current.json",
+  "eventsPath": "data/events/artemis-5-current.json",
+  "timeWindow": {
+    "startUtc": "2028-11-18T14:00:00.000Z",
+    "stopUtc": "2028-12-02T08:29:25.324Z",
+    "startEpochMs": 1858168800000,
+    "stopEpochMs": 1859358565325,
+    "durationSeconds": 1189765.325
+  },
+  "sampleCount": 558,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 1569.263,
+  "eventChecks": [
+    {
+      "id": "phase-1",
+      "label": "Launch",
+      "epochUtc": "2028-11-18T14:00:00.000Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858168800000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858168800000,
+        "supportStopEpochMs": 1858168800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-2",
+      "label": "Translunar transfer",
+      "epochUtc": "2028-11-20T07:18:40.666Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858316400000,
+      "nearestSampleOffsetMs": 1120666,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858316400000,
+        "supportStopEpochMs": 1858320000000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-3",
+      "label": "Gateway approach",
+      "epochUtc": "2028-11-22T00:37:21.331Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858465569263,
+      "nearestSampleOffsetMs": 672068,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858465569263,
+        "supportStopEpochMs": 1858467138525,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-4",
+      "label": "Deliver Lunar View",
+      "epochUtc": "2028-11-23T17:56:01.997Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858614649223,
+      "nearestSampleOffsetMs": 312774,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858614649223,
+        "supportStopEpochMs": 1858616218486,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-5",
+      "label": "Lander docks to Gateway",
+      "epochUtc": "2028-11-25T11:14:42.662Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858763729184,
+      "nearestSampleOffsetMs": -46522,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858762159921,
+        "supportStopEpochMs": 1858763729184,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-6",
+      "label": "Crew transfer and descent",
+      "epochUtc": "2028-11-27T04:33:23.328Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1858912809145,
+      "nearestSampleOffsetMs": -405817,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1858911239882,
+        "supportStopEpochMs": 1858912809145,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-7",
+      "label": "Surface mission",
+      "epochUtc": "2028-11-28T21:52:03.994Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859059765325,
+      "nearestSampleOffsetMs": 1358669,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859059765325,
+        "supportStopEpochMs": 1859063365325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-8",
+      "label": "Ascent and redock",
+      "epochUtc": "2028-11-30T15:10:44.659Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859210965325,
+      "nearestSampleOffsetMs": -1120666,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859207365325,
+        "supportStopEpochMs": 1859210965325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-9",
+      "label": "Return to Earth",
+      "epochUtc": "2028-12-02T08:29:25.325Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859358565325,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859358565325,
+        "supportStopEpochMs": 1859358565325,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-05T03:47:10Z"
+}

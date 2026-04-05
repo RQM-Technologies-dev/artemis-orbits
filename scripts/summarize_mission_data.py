@@ -43,8 +43,17 @@ def main() -> int:
         segment_count = data.get('derived', {}).get('segmentCount', len(data.get('segments') or []))
         sample_count = data.get('derived', {}).get('sampleCount')
 
-        moon_file = normalized_dir / f'{mission_id}-moon.json'
-        event_file = Path('data/events') / f'{mission_id}.json'
+        mission_stub = mission_file.stem
+        moon_stub = mission_stub
+        if mission_stub.startswith('artemis-3-'):
+            moon_stub = mission_stub.replace('artemis-3-', 'artemis-3-moon-', 1)
+        elif mission_stub.startswith('artemis-5-'):
+            moon_stub = mission_stub.replace('artemis-5-', 'artemis-5-moon-', 1)
+        elif mission_stub in ('artemis-1', 'artemis-2'):
+            moon_stub = f'{mission_stub}-moon'
+
+        moon_file = normalized_dir / f'{moon_stub}.json'
+        event_file = Path('data/events') / f'{mission_stub}.json'
 
         print(f'{mission_id}')
         print(f'  startUtc: {start_utc}')

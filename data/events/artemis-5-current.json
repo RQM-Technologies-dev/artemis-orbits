@@ -1,0 +1,92 @@
+[
+  {
+    "id": "phase-1",
+    "label": "Launch",
+    "epochUtc": "2028-11-18T14:00:00.000Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "Orion and ESA's Lunar View launch together on SLS toward lunar orbit."
+  },
+  {
+    "id": "phase-2",
+    "label": "Translunar transfer",
+    "epochUtc": "2028-11-20T07:18:40.666Z",
+    "metSeconds": 148720,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "The co-manifested stack departs Earth for the Moon."
+  },
+  {
+    "id": "phase-3",
+    "label": "Gateway approach",
+    "epochUtc": "2028-11-22T00:37:21.331Z",
+    "metSeconds": 297441,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "Orion arrives in the Gateway staging orbit family near the Moon. NASA has not publicly released the exact operational ephemeris."
+  },
+  {
+    "id": "phase-4",
+    "label": "Deliver Lunar View",
+    "epochUtc": "2028-11-23T17:56:01.997Z",
+    "metSeconds": 446161,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "Orion delivers Lunar View to Gateway, where it docks to HALO."
+  },
+  {
+    "id": "phase-5",
+    "label": "Lander docks to Gateway",
+    "epochUtc": "2028-11-25T11:14:42.662Z",
+    "metSeconds": 594882,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "A Human Landing System docks to Gateway to receive the surface crew."
+  },
+  {
+    "id": "phase-6",
+    "label": "Crew transfer and descent",
+    "epochUtc": "2028-11-27T04:33:23.328Z",
+    "metSeconds": 743603,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "Two astronauts transfer to the lander and descend toward the lunar South Pole region."
+  },
+  {
+    "id": "phase-7",
+    "label": "Surface mission",
+    "epochUtc": "2028-11-28T21:52:03.994Z",
+    "metSeconds": 892323,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "About a week of surface exploration near the South Pole, with Artemis V also expected to begin the first Moon-base buildup and the first crewed use of the Lunar Terrain Vehicle."
+  },
+  {
+    "id": "phase-8",
+    "label": "Ascent and redock",
+    "epochUtc": "2028-11-30T15:10:44.659Z",
+    "metSeconds": 1041044,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "The surface crew returns to Gateway and transfers back to Orion."
+  },
+  {
+    "id": "phase-9",
+    "label": "Return to Earth",
+    "epochUtc": "2028-12-02T08:29:25.325Z",
+    "metSeconds": 1189765,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis V phase flow from NASA 2026 mission framing; timing remains notional until exact ephemeris is released.",
+    "description": "The full crew departs lunar orbit and returns to Earth on Orion."
+  }
+]

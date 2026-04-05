@@ -79,6 +79,14 @@ const ARTEMIS_II_FULL_MOON_ORBIT_POINTS = 540;
 const ARTEMIS_3_MODEL_PATH = './data/models/artemis-3-mission-model.json';
 const ARTEMIS_3_PROFILE_DEFAULT = 'current-leo';
 const ARTEMIS_3_PROFILE_MODES = ['current-leo', 'legacy-cislunar', 'legacy-nrho-detail'];
+const ARTEMIS_5_MODEL_PATH = './data/models/artemis-5-mission-model.json';
+const ARTEMIS_5_PROFILE_DEFAULT = 'current-mission';
+const ARTEMIS_5_PROFILE_MODES = [
+  'current-mission',
+  'current-nrho-detail',
+  'archived-detailed-profile',
+  'archived-nrho-detail',
+];
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -109,6 +117,10 @@ const state = {
     model: null,
     profileMode: ARTEMIS_3_PROFILE_DEFAULT,
   },
+  artemis5: {
+    model: null,
+    profileMode: ARTEMIS_5_PROFILE_DEFAULT,
+  },
   ui: {
     performanceMode: 'auto',
     followCamera: false,
@@ -122,6 +134,7 @@ const state = {
     zoomLevel: 0.5,
     liveMode: false,
     artemis3Mode: ARTEMIS_3_PROFILE_DEFAULT,
+    artemis5Mode: ARTEMIS_5_PROFILE_DEFAULT,
   },
 };
 
@@ -254,6 +267,23 @@ function getDomRefs() {
     a3SourcesOfficial: pickOptional('a3-sources-official'),
     a3SourcesArchived: pickOptional('a3-sources-archived'),
     a3SourcesProxy: pickOptional('a3-sources-proxy'),
+    artemis5Card: pickOptional('artemis5-card'),
+    artemis5Subtitle: pickOptional('artemis5-subtitle'),
+    artemis5StatusBadge: pickOptional('artemis5-status-badge'),
+    artemis5ProfileNote: pickOptional('artemis5-profile-note'),
+    btnA5Current: pickOptional('btn-a5-current'),
+    btnA5CurrentNrho: pickOptional('btn-a5-current-nrho'),
+    btnA5Archived: pickOptional('btn-a5-archived'),
+    btnA5ArchivedNrho: pickOptional('btn-a5-archived-nrho'),
+    artemis5SummaryList: pickOptional('artemis5-summary-list'),
+    artemis5PhaseList: pickOptional('artemis5-phase-list'),
+    artemis5FactsList: pickOptional('artemis5-facts-list'),
+    artemis5MoonbaseList: pickOptional('artemis5-moonbase-list'),
+    a5SourcesOfficial: pickOptional('a5-sources-official'),
+    a5SourcesArchived: pickOptional('a5-sources-archived'),
+    a5SourcesProxy: pickOptional('a5-sources-proxy'),
+    a5SourcesMoonbase: pickOptional('a5-sources-moonbase'),
+    a5SourcesDrift: pickOptional('a5-sources-drift'),
   };
 }
 
@@ -576,12 +606,32 @@ function getArtemis3ProfileConfig(mission, mode) {
 }
 
 function getMissionDataPaths(mission) {
-  if (mission?.id !== 'artemis-3') {
+  if (mission?.id !== 'artemis-3' && mission?.id !== 'artemis-5') {
     return {
       normalizedPath: mission?.normalizedPath || null,
       moonPath: mission?.moonPath || null,
       eventsPath: mission?.eventsPath || null,
       mode: null,
+    };
+  }
+  if (mission?.id === 'artemis-5') {
+    const mode = ARTEMIS_5_PROFILE_MODES.includes(state.ui.artemis5Mode)
+      ? state.ui.artemis5Mode
+      : ARTEMIS_5_PROFILE_DEFAULT;
+    const profile = getArtemis5ProfileConfig(mission, mode);
+    if (!profile) {
+      return {
+        normalizedPath: mission.normalizedPath,
+        moonPath: mission.moonPath,
+        eventsPath: mission.eventsPath,
+        mode: ARTEMIS_5_PROFILE_DEFAULT,
+      };
+    }
+    return {
+      normalizedPath: profile.normalizedPath,
+      moonPath: profile.moonPath,
+      eventsPath: profile.eventsPath,
+      mode,
     };
   }
   const mode = ARTEMIS_3_PROFILE_MODES.includes(state.ui.artemis3Mode)
@@ -850,6 +900,257 @@ function renderArtemis3Sources(mode) {
   ]);
 }
 
+
+function buildArtemis5ProfileToggle() {
+  const isArtemis5 = state.activeMissionId === 'artemis-5';
+  if (!refs.artemis5Card) return;
+  refs.artemis5Card.classList.toggle('hidden', !isArtemis5);
+  const mode = state.ui.artemis5Mode;
+  const map = [
+    [refs.btnA5Current, 'current-mission'],
+    [refs.btnA5CurrentNrho, 'current-nrho-detail'],
+    [refs.btnA5Archived, 'archived-detailed-profile'],
+    [refs.btnA5ArchivedNrho, 'archived-nrho-detail'],
+  ];
+  for (const [btn, key] of map) {
+    if (!btn) continue;
+    const active = key === mode;
+    btn.classList.toggle('is-toggled', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+}
+
+async function loadArtemis5Model() {
+  if (state.artemis5.model) return state.artemis5.model;
+  const loaded = await loadJson(ARTEMIS_5_MODEL_PATH);
+  state.artemis5.model = loaded || null;
+  return state.artemis5.model;
+}
+
+function getArtemis5ProfileConfig(mission, mode) {
+  const profiles = mission?.artemis5Profiles || {};
+  if (profiles[mode]) return profiles[mode];
+  return profiles[ARTEMIS_5_PROFILE_DEFAULT] || null;
+}
+
+async function switchArtemis5Profile(nextMode) {
+  if (state.activeMissionId !== 'artemis-5') return;
+  const normalized = ARTEMIS_5_PROFILE_MODES.includes(nextMode) ? nextMode : ARTEMIS_5_PROFILE_DEFAULT;
+  if (state.ui.artemis5Mode === normalized) {
+    buildArtemis5ProfileToggle();
+    renderArtemis5Content();
+    return;
+  }
+  state.ui.artemis5Mode = normalized;
+  state.artemis5.profileMode = normalized;
+  syncUrlState();
+  await selectMission('artemis-5');
+}
+
+function mapSourcesToEntries(items = [], fallbackNote = '') {
+  return (Array.isArray(items) ? items : []).map((s) => ({
+    label: s?.title || s?.id || 'Source',
+    href: s?.url || '',
+    note: [s?.publisher, s?.updated ? `updated ${s.updated}` : '', s?.note || fallbackNote]
+      .filter(Boolean)
+      .join(' — '),
+  }));
+}
+
+function renderArtemis5Summary(mode, current, legacy) {
+  if (!refs.artemis5SummaryList) return;
+  refs.artemis5SummaryList.innerHTML = '';
+  const items = [];
+  if (mode === 'current-mission' || mode === 'current-nrho-detail') {
+    items.push('Launch target: Late 2028');
+    items.push('Mission type: Gateway assembly + crewed surface landing');
+    items.push('Crew profile: 4 astronauts, including 2 to the surface for about one week.');
+    items.push('Main systems: SLS Block 1B, Orion, Lunar View, Gateway/HALO, Human Landing System.');
+    items.push('Moon-base context: Artemis V is when NASA says it expects to begin building its Moon base.');
+    items.push('Orbit note: NASA has not publicly released exact Artemis V orbital elements or ephemeris.');
+  } else {
+    items.push('Archived/provider-specific layer from 2023-2026 public details (same Gateway/NRHO family).');
+    items.push('Includes low-Earth-orbit checks, transposition/extraction, lunar flyby/gravity-assist, NRHO loiter, and Earth return.');
+    items.push('Provider naming and older schedule assumptions are retained only in this archived/reference view.');
+  }
+  if (current?.summary && (mode === 'current-mission' || mode === 'current-nrho-detail')) items.push(current.summary);
+  if (legacy?.summary && (mode === 'archived-detailed-profile' || mode === 'archived-nrho-detail')) items.push(legacy.summary);
+  for (const text of items) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    refs.artemis5SummaryList.appendChild(li);
+  }
+}
+
+function renderArtemis5Timeline(mode, current, legacy) {
+  if (!refs.artemis5PhaseList) return;
+  refs.artemis5PhaseList.innerHTML = '';
+  const phaseSource = (mode === 'current-mission' || mode === 'current-nrho-detail')
+    ? current?.phases
+    : legacy?.phases;
+  const phases = Array.isArray(phaseSource) ? phaseSource : [];
+  for (const phase of phases) {
+    const li = document.createElement('li');
+    li.tabIndex = 0;
+    li.className = 'a3-timeline-item';
+    const heading = document.createElement('div');
+    heading.className = 'a3-timeline-label';
+    heading.textContent = `${phase.id}. ${phase.label}`;
+    const detail = document.createElement('div');
+    detail.className = 'a3-timeline-detail';
+    detail.textContent = phase.summary || 'Details forthcoming';
+    li.appendChild(heading);
+    li.appendChild(detail);
+    if (phase.vehicle) {
+      const vehicle = document.createElement('div');
+      vehicle.className = 'a3-timeline-vehicle';
+      vehicle.textContent = `Vehicle: ${phase.vehicle}`;
+      li.appendChild(vehicle);
+    }
+    refs.artemis5PhaseList.appendChild(li);
+  }
+}
+
+function renderArtemis5Facts(mode, current, legacy, orbitProxies) {
+  if (!refs.artemis5FactsList) return;
+  refs.artemis5FactsList.innerHTML = '';
+  const facts = [];
+  facts.push('Current vs archived Artemis V views differ by mission framing freshness and detail level, not by orbit family.');
+  facts.push('Shared orbit family in public sources: southern 9:2 Gateway NRHO.');
+  facts.push('Representative NRHO period: about 6.5 days; perilune altitude about 1,500 km; farthest altitude about 70,000 km.');
+  facts.push('Technical values often cited: perilune radius about 3,500 km and apolune radius about 71,000 km.');
+  facts.push('NRHO rationale: communications continuity, eclipse management, and south-pole access.');
+  if (mode === 'current-mission') facts.push('Current mission path shown here is conceptual until NASA releases official ephemeris.');
+  if (mode === 'current-nrho-detail') facts.push('Current NRHO view uses derived Gateway proxy cycle data.');
+  if (mode === 'archived-detailed-profile') facts.push('Archived detailed profile preserves provider-specific public detail as reference context.');
+  if (mode === 'archived-nrho-detail') facts.push('Archived NRHO view uses the same underlying NRHO proxy family with archived labeling.');
+  if (orbitProxies?.same_underlying_proxy_note) facts.push(orbitProxies.same_underlying_proxy_note);
+  if (current?.publicly_released_orbit?.released === false) {
+    facts.push('NASA has not publicly released exact Artemis V orbital elements or point-by-point ephemeris.');
+  }
+  facts.push('All NRHO orbit tracks shown are derived proxies, not official Artemis V ephemeris.');
+  for (const fact of facts) {
+    const li = document.createElement('li');
+    li.textContent = fact;
+    refs.artemis5FactsList.appendChild(li);
+  }
+}
+
+function renderArtemis5MoonbaseNotes(current) {
+  if (!refs.artemis5MoonbaseList) return;
+  refs.artemis5MoonbaseList.innerHTML = '';
+  const notes = [
+    current?.moon_base_context || 'NASA says Artemis V is when it expects to begin building its Moon base.',
+    'NASA intends to begin using the Lunar Terrain Vehicle (LTV) for crewed operations during Artemis V.',
+    'Campaign caveat: final Moon-base hardware layout and manifest details are not yet publicly finalized.',
+  ];
+  for (const text of notes) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    refs.artemis5MoonbaseList.appendChild(li);
+  }
+}
+
+function renderArtemis5Sources(mode, model) {
+  const missionModelPath = './data/models/artemis-5-mission-model.json';
+  const currentCyclePath = './data/models/artemis-5-current-nrho-proxy-cycle.json';
+  const currentFullPath = './data/models/artemis-5-current-nrho-proxy-full.json';
+  const legacyCyclePath = './data/models/artemis-5-legacy-nrho-proxy-cycle.json';
+  const legacyFullPath = './data/models/artemis-5-legacy-nrho-proxy-full.json';
+  const sources = model?.sources || {};
+  appendSourceEntries(refs.a5SourcesOfficial, [
+    ...mapSourcesToEntries(sources.current_official),
+    {
+      label: 'Artemis V mission model (local JSON)',
+      href: missionModelPath,
+      note: 'Current-vs-archived distinctions and copy constraints used by this tab.',
+    },
+  ]);
+  appendSourceEntries(refs.a5SourcesArchived, mapSourcesToEntries(sources.archived_provider_specific));
+  appendSourceEntries(refs.a5SourcesProxy, [
+    ...mapSourcesToEntries(sources.technical_proxy),
+    {
+      label: mode === 'current-nrho-detail' ? 'Current NRHO proxy cycle JSON' : 'Archived NRHO proxy cycle JSON',
+      href: mode === 'current-nrho-detail' ? currentCyclePath : legacyCyclePath,
+      note: 'Derived Gateway NRHO proxy cycle; not exact Artemis V ephemeris.',
+    },
+    {
+      label: mode === 'current-nrho-detail' ? 'Current NRHO full proxy JSON' : 'Archived NRHO full proxy JSON',
+      href: mode === 'current-nrho-detail' ? currentFullPath : legacyFullPath,
+      note: 'Decimated full proxy sample for broader orbit-family context.',
+    },
+  ]);
+  appendSourceEntries(refs.a5SourcesMoonbase, mapSourcesToEntries(sources.moon_base_and_surface_mobility));
+  appendSourceEntries(refs.a5SourcesDrift, mapSourcesToEntries(sources.update_note_sources).concat(
+    (model?.source_drift_notes || []).map((note, idx) => ({ label: `Source drift note ${idx + 1}`, note })),
+  ));
+}
+
+function renderArtemis5Content() {
+  if (!refs.artemis5Card) return;
+  const isArtemis5 = state.activeMissionId === 'artemis-5';
+  refs.artemis5Card.classList.toggle('hidden', !isArtemis5);
+  if (!isArtemis5) {
+    setSceneModeDisclaimer('', { tone: 'warn' });
+    return;
+  }
+
+  const model = state.artemis5.model || {};
+  const current = model.current_official || {};
+  const legacy = model.archived_provider_specific_profile || {};
+  const mode = ARTEMIS_5_PROFILE_MODES.includes(state.ui.artemis5Mode)
+    ? state.ui.artemis5Mode
+    : ARTEMIS_5_PROFILE_DEFAULT;
+
+  const descriptor = {
+    'current-mission': {
+      subtitle: 'Late 2028 crewed lunar surface mission via Gateway',
+      badge: 'Current official mission',
+      badgeClass: 'a3-badge-official',
+      note: 'Mission path based on current public mission descriptions; NASA has not yet released exact Artemis V ephemeris.',
+      disclaimerTone: 'official',
+    },
+    'current-nrho-detail': {
+      subtitle: 'Current mission NRHO detail (derived Gateway proxy)',
+      badge: 'Derived proxy NRHO view',
+      badgeClass: 'a3-badge-proxy',
+      note: 'Derived Gateway NRHO reference orbit from public NASA sources. Not exact Artemis V ephemeris.',
+      disclaimerTone: 'official',
+    },
+    'archived-detailed-profile': {
+      subtitle: 'Archived provider-specific detailed profile',
+      badge: 'Archived reference profile',
+      badgeClass: 'a3-badge-archived',
+      note: 'Archived/provider-specific detail layer from older public sources; same Gateway/NRHO family, not a different architecture.',
+      disclaimerTone: 'archived',
+    },
+    'archived-nrho-detail': {
+      subtitle: 'Archived NRHO detail (derived Gateway proxy)',
+      badge: 'Archived proxy NRHO view',
+      badgeClass: 'a3-badge-proxy',
+      note: 'Representative archived NRHO proxy cycle from public NASA sample data. Not exact Artemis V ephemeris.',
+      disclaimerTone: 'archived',
+    },
+  }[mode];
+
+  if (refs.artemis5Subtitle) refs.artemis5Subtitle.textContent = descriptor.subtitle;
+  if (refs.artemis5StatusBadge) {
+    refs.artemis5StatusBadge.textContent = descriptor.badge;
+    refs.artemis5StatusBadge.classList.remove('a3-badge-official', 'a3-badge-archived', 'a3-badge-proxy');
+    refs.artemis5StatusBadge.classList.add(descriptor.badgeClass);
+  }
+  if (refs.artemis5ProfileNote) refs.artemis5ProfileNote.textContent = descriptor.note;
+  setSceneModeDisclaimer(descriptor.note, { tone: descriptor.disclaimerTone });
+
+  buildArtemis5ProfileToggle();
+  renderArtemis5Summary(mode, current, legacy);
+  renderArtemis5Timeline(mode, current, legacy);
+  renderArtemis5Facts(mode, current, legacy, model.orbit_proxies || {});
+  renderArtemis5MoonbaseNotes(current);
+  renderArtemis5Sources(mode, model);
+}
+
+
 function wireUiEvents() {
   setEventMarkerClickHandler(({ eventId }) => {
     jumpToEventById(eventId);
@@ -867,6 +1168,26 @@ function wireUiEvents() {
   if (refs.btnA3Nrho) {
     refs.btnA3Nrho.addEventListener('click', () => {
       switchArtemis3Profile('legacy-nrho-detail').catch((error) => handleStartupError('Artemis III profile switch failed', error));
+    });
+  }
+  if (refs.btnA5Current) {
+    refs.btnA5Current.addEventListener('click', () => {
+      switchArtemis5Profile('current-mission').catch((error) => handleStartupError('Artemis V profile switch failed', error));
+    });
+  }
+  if (refs.btnA5CurrentNrho) {
+    refs.btnA5CurrentNrho.addEventListener('click', () => {
+      switchArtemis5Profile('current-nrho-detail').catch((error) => handleStartupError('Artemis V profile switch failed', error));
+    });
+  }
+  if (refs.btnA5Archived) {
+    refs.btnA5Archived.addEventListener('click', () => {
+      switchArtemis5Profile('archived-detailed-profile').catch((error) => handleStartupError('Artemis V profile switch failed', error));
+    });
+  }
+  if (refs.btnA5ArchivedNrho) {
+    refs.btnA5ArchivedNrho.addEventListener('click', () => {
+      switchArtemis5Profile('archived-nrho-detail').catch((error) => handleStartupError('Artemis V profile switch failed', error));
     });
   }
   refs.btnPlay.addEventListener('click', () => {
@@ -1068,7 +1389,12 @@ async function selectMission(id) {
     state.ui.artemis3Mode = ARTEMIS_3_PROFILE_DEFAULT;
     state.artemis3.profileMode = state.ui.artemis3Mode;
   }
+  if (mission.id === 'artemis-5' && !ARTEMIS_5_PROFILE_MODES.includes(state.ui.artemis5Mode)) {
+    state.ui.artemis5Mode = ARTEMIS_5_PROFILE_DEFAULT;
+    state.artemis5.profileMode = state.ui.artemis5Mode;
+  }
   buildArtemis3ProfileToggle();
+  buildArtemis5ProfileToggle();
 
   setActiveTab(id);
   resetLoadedMissionState();
@@ -1082,6 +1408,7 @@ async function selectMission(id) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
     setSidebarStatus('Mission JSON missing');
     renderArtemis3Content();
+    renderArtemis5Content();
     return;
   }
 
@@ -1091,6 +1418,13 @@ async function selectMission(id) {
       await loadArtemis3Model();
     } catch (error) {
       setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (mission.id === 'artemis-5') {
+    try {
+      await loadArtemis5Model();
+    } catch (error) {
+      setErrorMessage(`Artemis V model load failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   const dataPaths = getMissionDataPaths(mission);
@@ -1164,14 +1498,18 @@ async function selectMission(id) {
   updateScene();
   refreshMissionAnnotations(mission);
   renderArtemis3Content();
+  renderArtemis5Content();
   applyInitialTimeOverrideFromUrl();
   if (state.ui.liveMode) setLiveModeUi(true, { sync: false, status: false });
   syncUrlState();
 
   const artemis3Profile = getArtemis3ProfileConfig(mission, state.ui.artemis3Mode);
+  const artemis5Profile = getArtemis5ProfileConfig(mission, state.ui.artemis5Mode);
   const missionLabel = mission.id === 'artemis-3'
     ? `Mission scene active — Artemis III (${artemis3Profile?.displayName || 'Current mission'})`
-    : `Mission scene active — ${mission.displayName}`;
+    : mission.id === 'artemis-5'
+      ? `Mission scene active — Artemis V (${artemis5Profile?.displayName || 'Current mission'})`
+      : `Mission scene active — ${mission.displayName}`;
   setSidebarStatus(missionLabel);
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
@@ -1573,11 +1911,16 @@ function parseInitialUiStateFromUrl() {
   const voiceVol = params.get('voiceVol');
   const live = params.get('live');
   const a3mode = params.get('a3mode');
+  const a5mode = params.get('a5mode');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
   if (ARTEMIS_3_PROFILE_MODES.includes(a3mode || '')) {
     state.ui.artemis3Mode = a3mode;
     state.artemis3.profileMode = a3mode;
+  }
+  if (ARTEMIS_5_PROFILE_MODES.includes(a5mode || '')) {
+    state.ui.artemis5Mode = a5mode;
+    state.artemis5.profileMode = a5mode;
   }
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
   if (speedMatch) refs.speedSelect.value = String(speedMatch.missionMsPerWallSecond);
@@ -1649,6 +1992,11 @@ function syncUrlState() {
     params.set('a3mode', state.ui.artemis3Mode || ARTEMIS_3_PROFILE_DEFAULT);
   } else {
     params.delete('a3mode');
+  }
+  if (state.activeMissionId === 'artemis-5') {
+    params.set('a5mode', state.ui.artemis5Mode || ARTEMIS_5_PROFILE_DEFAULT);
+  } else {
+    params.delete('a5mode');
   }
   const query = params.toString();
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;

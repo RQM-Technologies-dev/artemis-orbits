@@ -260,6 +260,69 @@
           </div>
         </details>
       </div>
+
+      <div class="card artemis5-card hidden" id="artemis5-card" aria-live="polite">
+        <div class="artemis3-hero">
+          <div>
+            <h3>Artemis V</h3>
+            <p id="artemis5-subtitle" class="muted">Late 2028 crewed lunar surface mission via Gateway</p>
+          </div>
+          <span id="artemis5-status-badge" class="a3-badge a3-badge-official">Current official mission</span>
+        </div>
+        <div class="artemis3-profile-toggle" role="tablist" aria-label="Artemis V profile mode">
+          <button id="btn-a5-current" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="true">Current mission</button>
+          <button id="btn-a5-current-nrho" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="false">Current NRHO detail</button>
+          <button id="btn-a5-archived" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="false">Archived detailed profile</button>
+          <button id="btn-a5-archived-nrho" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="false">Archived NRHO detail</button>
+        </div>
+        <p id="artemis5-profile-note" class="artemis3-profile-note">Mission path based on current public mission descriptions; NASA has not yet released exact Artemis V ephemeris.</p>
+
+        <section class="artemis3-section" aria-labelledby="a5-summary-heading">
+          <h4 id="a5-summary-heading">Mission summary</h4>
+          <ul id="artemis5-summary-list" class="a3-list"></ul>
+        </section>
+
+        <section class="artemis3-section" aria-labelledby="a5-timeline-heading">
+          <h4 id="a5-timeline-heading">Phase timeline</h4>
+          <ol id="artemis5-phase-list" class="a3-timeline"></ol>
+        </section>
+
+        <section class="artemis3-section" aria-labelledby="a5-facts-heading">
+          <h4 id="a5-facts-heading">Orbit facts and technical notes</h4>
+          <ul id="artemis5-facts-list" class="a3-list"></ul>
+        </section>
+
+        <section class="artemis3-section" aria-labelledby="a5-moonbase-heading">
+          <h4 id="a5-moonbase-heading">Moon base and surface mobility</h4>
+          <ul id="artemis5-moonbase-list" class="a3-list"></ul>
+        </section>
+
+        <details id="artemis5-sources" class="a3-sources">
+          <summary>Sources and research notes</summary>
+          <div class="a3-sources-grid">
+            <section>
+              <h5>Current official NASA sources</h5>
+              <ul id="a5-sources-official" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Archived/provider-specific sources</h5>
+              <ul id="a5-sources-archived" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Technical proxy orbit sources</h5>
+              <ul id="a5-sources-proxy" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Moon base and mobility sources</h5>
+              <ul id="a5-sources-moonbase" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Update-note and source-drift notes</h5>
+              <ul id="a5-sources-drift" class="a3-source-list"></ul>
+            </section>
+          </div>
+        </details>
+      </div>
     </aside>
   </main>
 

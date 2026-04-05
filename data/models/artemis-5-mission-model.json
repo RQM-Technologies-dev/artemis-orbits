@@ -1,0 +1,421 @@
+{
+  "mission": "Artemis V",
+  "generated_at_utc": "2026-04-05T02:52:37Z",
+  "website_recommendation": {
+    "default_view": "current_official",
+    "secondary_view": "archived_provider_specific_profile",
+    "note": "Present the current official late-2028 Artemis V Gateway/Lunar View mission as primary, and expose older provider-specific 2029/2030 public details only as an archived/reference layer."
+  },
+  "current_official": {
+    "title": "Artemis V (current official mission)",
+    "architecture_status": "official_current",
+    "summary": "NASA's current 2026 materials describe Artemis V as a late-2028 lunar surface mission that integrates Lunar View with Gateway and completes the third crewed lunar surface expedition. Orion and Lunar View launch together on SLS Block 1B to lunar orbit, Orion delivers Lunar View to Gateway/HALO, a Human Landing System docks to Gateway, the surface crew descends to the lunar South Pole region, and the crew returns to Earth on Orion.",
+    "launch_target": "Late 2028",
+    "mission_type": "Gateway assembly + crewed surface landing",
+    "crew_size": 4,
+    "surface_party_size": 2,
+    "surface_stay_public": "About one week",
+    "moon_base_context": "NASA says Artemis V is when it expects to begin building its Moon base.",
+    "primary_elements": [
+      "SLS Block 1B / standardized SLS configuration",
+      "Orion",
+      "Lunar View",
+      "Gateway / HALO",
+      "Human Landing System"
+    ],
+    "known": [
+      "Current NASA sources target launch by late 2028",
+      "Current NASA Gateway reference material says Artemis V integrates Lunar View with Gateway",
+      "Current NASA Gateway reference material says Orion and Lunar View launch together as a co-manifested payload on SLS Block 1B to lunar orbit",
+      "Current NASA Gateway reference material says Orion delivers Lunar View to HALO, an HLS docks to Gateway, the crew descends to the surface, and the crew returns to Earth on Orion",
+      "NASA's 2023 Artemis V lander award materials publicly describe four astronauts with two descending to the lunar South Pole region for about a week"
+    ],
+    "provider_context": {
+      "default_copy": "Use generic 'Human Landing System' in primary current-view copy.",
+      "public_procurement_note": "NASA selected Blue Origin in 2023 to develop the Artemis V sustainable lander, but current 2026 Artemis mission pages no longer use the older 2029 provider-specific framing as the primary mission summary.",
+      "safe_website_treatment": "Mention Blue Origin or Blue Moon only in a procurement / source note or archived/provider-specific view, not as the default hero statement."
+    },
+    "unknown": [
+      "No public exact Gateway arrival/departure state vectors",
+      "No public official orbital elements or point-by-point ephemeris for Artemis V",
+      "No public detailed phasing between Orion, Lunar View, Gateway, and HLS operations",
+      "No public exact Moon-base hardware manifest for the first Artemis V surface campaign"
+    ],
+    "publicly_released_orbit": {
+      "released": false,
+      "public_description": "Current NASA pages describe Artemis V through Gateway in lunar orbit but do not publish official state vectors or precise orbital elements.",
+      "derived_proxy_available": true,
+      "derived_proxy_name": "Southern 9:2 Gateway NRHO"
+    },
+    "best_public_proxy": {
+      "name": "Southern 9:2 Gateway NRHO",
+      "type": "derived_proxy",
+      "confidence": "derived",
+      "rationale": [
+        "Current official Artemis V public material still stages the mission through Gateway in lunar orbit.",
+        "NASA's Gateway FAQ provides public NRHO distance and period values.",
+        "NASA's NRHO white paper and NTRS records identify Gateway's operational orbit as a southern 9:2 resonant NRHO with about a 6.5-day period.",
+        "NASA hosts a public sample NRHO trajectory that is the best available stand-in for website visualization."
+      ],
+      "parameters_public": {
+        "family": "Southern L2 NRHO",
+        "resonance": "9:2",
+        "period_days_approx": 6.5,
+        "closest_approach_altitude_km_approx": 1500,
+        "farthest_distance_altitude_km_approx": 70000,
+        "perilune_radius_km_approx": 3500,
+        "apolune_radius_km_approx": 71000,
+        "inclination_character": "near-polar"
+      },
+      "use_on_website": "Appropriate for current and archived Artemis V orbit detail views, but only when explicitly labeled as a proxy / derived Gateway NRHO, never as exact mission ephemeris."
+    },
+    "surface_mobility_and_base_context": {
+      "base_building_note": "NASA says Artemis V is when it expects to begin building its Moon base.",
+      "ltv_current_status": "NASA intends to begin using the Lunar Terrain Vehicle (LTV) for crewed operations during Artemis V.",
+      "ltv_testing_note": "NASA's rover Ground Test Unit work is meant to evaluate concepts for use beginning with Artemis V.",
+      "what_not_to_claim": [
+        "Do not claim a final Moon-base layout is public.",
+        "Do not imply a pressurized rover or habitat module is confirmed for Artemis V unless treated only as broader campaign context."
+      ]
+    },
+    "phases": [
+      {
+        "id": 1,
+        "label": "Launch",
+        "vehicle": "SLS Block 1B + Orion + Lunar View",
+        "status": "official_current",
+        "summary": "Orion and ESA's Lunar View launch together on SLS toward lunar orbit."
+      },
+      {
+        "id": 2,
+        "label": "Translunar transfer",
+        "vehicle": "Orion + Lunar View",
+        "status": "official_current",
+        "summary": "The co-manifested stack departs Earth for the Moon."
+      },
+      {
+        "id": 3,
+        "label": "Gateway approach",
+        "vehicle": "Orion",
+        "status": "official_current",
+        "summary": "Orion arrives in the Gateway staging orbit family near the Moon. NASA has not publicly released the exact operational ephemeris."
+      },
+      {
+        "id": 4,
+        "label": "Deliver Lunar View",
+        "vehicle": "Orion + Lunar View + Gateway",
+        "status": "official_current",
+        "summary": "Orion delivers Lunar View to Gateway, where it docks to HALO."
+      },
+      {
+        "id": 5,
+        "label": "Lander docks to Gateway",
+        "vehicle": "Human Landing System",
+        "status": "official_current",
+        "summary": "A Human Landing System docks to Gateway to receive the surface crew."
+      },
+      {
+        "id": 6,
+        "label": "Crew transfer and descent",
+        "vehicle": "HLS",
+        "status": "official_current",
+        "summary": "Two astronauts transfer to the lander and descend toward the lunar South Pole region."
+      },
+      {
+        "id": 7,
+        "label": "Surface mission",
+        "vehicle": "HLS / surface systems",
+        "status": "official_current",
+        "summary": "About a week of surface exploration near the South Pole, with Artemis V also expected to begin the first Moon-base buildup and the first crewed use of the Lunar Terrain Vehicle."
+      },
+      {
+        "id": 8,
+        "label": "Ascent and redock",
+        "vehicle": "HLS + Gateway",
+        "status": "official_current",
+        "summary": "The surface crew returns to Gateway and transfers back to Orion."
+      },
+      {
+        "id": 9,
+        "label": "Return to Earth",
+        "vehicle": "Orion",
+        "status": "official_current",
+        "summary": "The full crew departs lunar orbit and returns to Earth on Orion."
+      }
+    ]
+  },
+  "archived_provider_specific_profile": {
+    "title": "Artemis V (archived / provider-specific detailed public profile)",
+    "architecture_status": "archived_legacy",
+    "summary": "Older NASA procurement material and ESA pages provide a more detailed Artemis V sequence tied to Blue Moon / 2029 or Lunar View / 2030 language. Those sources still show the same Gateway/NRHO architecture but include older schedule assumptions and step-by-step operational detail that should not override the current late-2028 NASA framing.",
+    "primary_elements": [
+      "SLS Block 1B / EUS (older public detail)",
+      "Orion",
+      "Lunar View",
+      "Gateway",
+      "Blue Moon HLS (public procurement context)"
+    ],
+    "gateway_staging_orbit": {
+      "name": "Southern 9:2 Gateway NRHO",
+      "period_days_public": 6.5,
+      "notes": [
+        "Same Gateway staging-orbit family as the current official view",
+        "Near-polar and southward / southern-family NRHO",
+        "Chosen for Earth communications, eclipse avoidance, and South Pole access"
+      ]
+    },
+    "phases": [
+      {
+        "id": 1,
+        "label": "Launch",
+        "vehicle": "SLS Block 1B + Orion + Lunar View",
+        "status": "archived_legacy",
+        "summary": "Launch from Kennedy Space Center with Orion and Lunar View co-manifested."
+      },
+      {
+        "id": 2,
+        "label": "Low-Earth orbit checks",
+        "vehicle": "Orion",
+        "status": "archived_legacy",
+        "summary": "Mission control and crew complete final checks in low Earth orbit."
+      },
+      {
+        "id": 3,
+        "label": "Translunar injection",
+        "vehicle": "Upper stage / Orion",
+        "status": "archived_legacy",
+        "summary": "The upper stage sends Orion and Lunar View toward the Moon."
+      },
+      {
+        "id": 4,
+        "label": "Transposition and extraction",
+        "vehicle": "Orion",
+        "status": "archived_legacy",
+        "summary": "Orion separates, turns around, docks with Lunar View, and extracts it from the upper stage."
+      },
+      {
+        "id": 5,
+        "label": "Outbound cruise",
+        "vehicle": "Orion + Lunar View",
+        "status": "archived_legacy",
+        "summary": "Orion and Lunar View coast toward the Moon."
+      },
+      {
+        "id": 6,
+        "label": "Lunar flyby / gravity assist",
+        "vehicle": "Orion",
+        "status": "archived_legacy",
+        "summary": "The detailed ESA public profile includes a lunar flyby / gravity-assist step before Gateway arrival."
+      },
+      {
+        "id": 7,
+        "label": "NRHO arrival",
+        "vehicle": "Orion + Gateway",
+        "status": "archived_legacy",
+        "summary": "Arrival at Gateway's near-rectilinear halo orbit."
+      },
+      {
+        "id": 8,
+        "label": "Dock with Gateway",
+        "vehicle": "Orion + Lunar View + Gateway",
+        "status": "archived_legacy",
+        "summary": "Orion docks with Gateway and connects / installs Lunar View."
+      },
+      {
+        "id": 9,
+        "label": "Transfer and activation",
+        "vehicle": "Crew + Gateway",
+        "status": "archived_legacy",
+        "summary": "Crew and cargo transfer to Gateway, Lunar View is activated, and the lander is prepared."
+      },
+      {
+        "id": 10,
+        "label": "Surface departure",
+        "vehicle": "Human landing system",
+        "status": "archived_legacy",
+        "summary": "Two astronauts undock in the lander for a South Pole surface sortie."
+      },
+      {
+        "id": 11,
+        "label": "Surface / orbital split operations",
+        "vehicle": "HLS + Orion/Gateway",
+        "status": "archived_legacy",
+        "summary": "Two astronauts work on the surface while Orion remains docked to Gateway for about six days in NRHO."
+      },
+      {
+        "id": 12,
+        "label": "Surface ascent and redock",
+        "vehicle": "HLS + Gateway",
+        "status": "archived_legacy",
+        "summary": "The lander lifts off from the Moon and redocks with Gateway."
+      },
+      {
+        "id": 13,
+        "label": "Prepare for Earth return",
+        "vehicle": "Crew + Orion",
+        "status": "archived_legacy",
+        "summary": "Crew and samples transfer back for the Earth-return leg."
+      },
+      {
+        "id": 14,
+        "label": "Departure from NRHO",
+        "vehicle": "Orion",
+        "status": "archived_legacy",
+        "summary": "Orion departs Gateway's NRHO at the optimal Earth-return point."
+      },
+      {
+        "id": 15,
+        "label": "Return flyby and cruise",
+        "vehicle": "Orion",
+        "status": "archived_legacy",
+        "summary": "The detailed public profile includes a lunar gravity-assist burn and homeward cruise."
+      },
+      {
+        "id": 16,
+        "label": "Reentry and splashdown",
+        "vehicle": "Orion crew module",
+        "status": "archived_legacy",
+        "summary": "Crew module separates, reenters Earth's atmosphere, and splashes down in the Pacific."
+      }
+    ]
+  },
+  "orbit_proxies": {
+    "current_nrho_cycle_file": "artemis_v_current_nrho_proxy_cycle.json",
+    "current_nrho_full_file": "artemis_v_current_nrho_proxy_full.json",
+    "legacy_nrho_cycle_file": "artemis_v_legacy_nrho_proxy_cycle.json",
+    "legacy_nrho_full_file": "artemis_v_legacy_nrho_proxy_full.json",
+    "same_underlying_proxy_note": "Both current and archived Artemis V views use the same southern 9:2 Gateway NRHO family in public sources; the duplicated files are intentionally the same geometry with different labels and UI use-cases."
+  },
+  "source_drift_notes": [
+    "Current 2026 NASA Artemis pages present Artemis V as a late-2028 lunar surface mission, with the Gateway reference page still explicitly describing Lunar View delivery to Gateway and a surface sortie via HLS.",
+    "Older NASA procurement material publicly ties Artemis V to Blue Origin's Blue Moon lander and a 2029 demonstration schedule; this is still valid procurement context but no longer the best current mission-summary framing.",
+    "ESA's Lunar View page explicitly says it will be updated to reflect the latest Artemis architecture and still carries older schedule/detail assumptions.",
+    "Because current and archived public materials both use Gateway/NRHO, the website should distinguish them by freshness and level of detail rather than by implying different orbit families."
+  ],
+  "copy_constraints": [
+    "Do not claim NASA has published exact Artemis V orbital elements or ephemeris.",
+    "Do not mix 2029/2030 dates from older Blue Moon / ESA materials into the default current hero view.",
+    "Use generic 'Human Landing System' in default current-view copy unless the UI is explicitly presenting procurement context.",
+    "Always label NRHO orbit data as proxy / derived when used in the UI.",
+    "Because current and archived views both use Gateway NRHO, label the secondary view as archived / provider-specific / detailed, not as a different current architecture.",
+    "Use 'expected' / 'intends' wording for Moon-base and LTV statements."
+  ],
+  "sources": {
+    "current_official": [
+      {
+        "id": "nasa_artemis_v_event_2026",
+        "title": "Artemis V",
+        "publisher": "NASA",
+        "updated": "2026-03-03",
+        "url": "https://www.nasa.gov/event/artemis-v/"
+      },
+      {
+        "id": "nasa_artemis_program_page_2026",
+        "title": "Moon to Mars | NASA's Artemis Program",
+        "publisher": "NASA",
+        "updated": "2026-03-29",
+        "url": "https://www.nasa.gov/humans-in-space/artemis/"
+      },
+      {
+        "id": "nasa_architecture_update_2026",
+        "title": "NASA Strengthens Artemis: Adds Mission, Refines Overall Architecture",
+        "publisher": "NASA",
+        "updated": "2026-03-03",
+        "url": "https://www.nasa.gov/directorates/esdmd/nasa-strengthens-artemis-adds-mission-refines-overall-architecture/"
+      },
+      {
+        "id": "nasa_gateway_reference_2026",
+        "title": "Gateway Space Station",
+        "publisher": "NASA",
+        "updated": "2026-03-11",
+        "url": "https://www.nasa.gov/reference/gateway-about/"
+      }
+    ],
+    "technical_proxy": [
+      {
+        "id": "nasa_gateway_faq",
+        "title": "Gateway: Frequently Asked Questions",
+        "publisher": "NASA",
+        "url": "https://www.nasa.gov/gateway-frequently-asked-questions/"
+      },
+      {
+        "id": "nasa_why_nrho_white_paper",
+        "title": "Why NRHO: The Artemis Orbit",
+        "publisher": "NASA",
+        "publication_context": "NASA Architecture Workshop / white paper",
+        "url": "https://www.nasa.gov/wp-content/uploads/2023/10/nrho-artemis-orbit.pdf"
+      },
+      {
+        "id": "ntrs_gateway_reference_orbit",
+        "title": "White Paper: Gateway Destination Orbit Model: A Continuous 15 Year NRHO Reference Trajectory",
+        "publisher": "NASA NTRS",
+        "url": "https://ntrs.nasa.gov/citations/20190030294"
+      },
+      {
+        "id": "ntrs_surface_to_nrho_rendezvous",
+        "title": "Trajectory Design Considerations for Lunar Surface to Near Rectilinear Halo Orbit Rendezvous",
+        "publisher": "NASA NTRS",
+        "url": "https://ntrs.nasa.gov/citations/20220018387"
+      },
+      {
+        "id": "ntrs_nrho_cloud_design",
+        "title": "Cloud Computing Methods for Near Rectilinear Halo Orbit Trajectory Design",
+        "publisher": "NASA NTRS",
+        "url": "https://ntrs.nasa.gov/citations/20190029093"
+      },
+      {
+        "id": "nasa_public_nrho_sample",
+        "title": "NRHO sample trajectory page",
+        "publisher": "NASA",
+        "url": "https://fireballs.ndc.nasa.gov/mem/library/nrho.html"
+      }
+    ],
+    "archived_provider_specific": [
+      {
+        "id": "nasa_blue_origin_artemis_v_award_2023",
+        "title": "NASA Selects Blue Origin as Second Artemis Lunar Lander Provider",
+        "publisher": "NASA",
+        "updated": "2023-05-19",
+        "url": "https://www.nasa.gov/news-release/nasa-selects-blue-origin-as-second-artemis-lunar-lander-provider/"
+      },
+      {
+        "id": "esa_artemis_v_page",
+        "title": "Artemis V",
+        "publisher": "ESA",
+        "url": "https://www.esa.int/Science_Exploration/Human_and_Robotic_Exploration/Orion/Artemis_V?lang=en-US"
+      },
+      {
+        "id": "esa_lunar_view_page",
+        "title": "Gateway: Lunar View",
+        "publisher": "ESA",
+        "note": "Carries an update note acknowledging architecture drift",
+        "url": "https://www.esa.int/Science_Exploration/Human_and_Robotic_Exploration/Gateway_Lunar_View"
+      }
+    ],
+    "moon_base_and_surface_mobility": [
+      {
+        "id": "nasa_ltv_selection_2024",
+        "title": "NASA Selects Companies to Advance Moon Mobility for Artemis Missions",
+        "publisher": "NASA",
+        "updated": "2024-04-03",
+        "url": "https://www.nasa.gov/news-release/nasa-selects-companies-to-advance-moon-mobility-for-artemis-missions/"
+      },
+      {
+        "id": "nasa_ltv_testing_2025",
+        "title": "NASA Prepares for Lunar Terrain Vehicle Testing",
+        "publisher": "NASA",
+        "updated": "2025-06-17",
+        "url": "https://www.nasa.gov/humans-in-space/nasa-prepares-for-lunar-terrain-vehicle-testing/"
+      }
+    ],
+    "update_note_sources": [
+      {
+        "id": "nasa_hls_page_update_note_2026",
+        "title": "Human Landing System",
+        "publisher": "NASA",
+        "note": "Carries an editor's note that the page is being updated to align with latest Artemis program changes",
+        "url": "https://www.nasa.gov/humans-in-space/human-landing-system/"
+      }
+    ]
+  }
+}

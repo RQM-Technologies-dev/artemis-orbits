@@ -1,0 +1,244 @@
+{
+  "missionId": "artemis-5-legacy",
+  "baseMissionId": "artemis-5",
+  "missionPath": "data/normalized/artemis-5-legacy.json",
+  "eventsPath": "data/events/artemis-5-legacy.json",
+  "timeWindow": {
+    "startUtc": "2029-03-07T12:00:00.000Z",
+    "stopUtc": "2029-03-22T20:29:25.324Z",
+    "startEpochMs": 1867579200000,
+    "stopEpochMs": 1868905765325,
+    "durationSeconds": 1326565.325
+  },
+  "sampleCount": 638,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 1569.263,
+  "eventChecks": [
+    {
+      "id": "phase-1",
+      "label": "Launch",
+      "epochUtc": "2029-03-07T12:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1867579200000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1867579200000,
+        "supportStopEpochMs": 1867579200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-2",
+      "label": "Low-Earth orbit checks",
+      "epochUtc": "2029-03-08T12:33:57.688Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1867669200000,
+      "nearestSampleOffsetMs": -1562312,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1867665600000,
+        "supportStopEpochMs": 1867669200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-3",
+      "label": "Translunar injection",
+      "epochUtc": "2029-03-09T13:07:55.377Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1867755600000,
+      "nearestSampleOffsetMs": 475377,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1867755600000,
+        "supportStopEpochMs": 1867759200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-4",
+      "label": "Transposition and extraction",
+      "epochUtc": "2029-03-10T13:41:53.065Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1867845600000,
+      "nearestSampleOffsetMs": -1086935,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1867842000000,
+        "supportStopEpochMs": 1867845600000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-5",
+      "label": "Outbound cruise",
+      "epochUtc": "2029-03-11T14:15:50.753Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1867933800000,
+      "nearestSampleOffsetMs": -849247,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1867932000000,
+        "supportStopEpochMs": 1867933800000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-6",
+      "label": "Lunar flyby / gravity assist",
+      "epochUtc": "2029-03-12T14:49:48.442Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868021631569,
+      "nearestSampleOffsetMs": -243127,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868020062306,
+        "supportStopEpochMs": 1868021631569,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-7",
+      "label": "NRHO arrival",
+      "epochUtc": "2029-03-13T15:23:46.130Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868109510282,
+      "nearestSampleOffsetMs": 315848,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868109510282,
+        "supportStopEpochMs": 1868111079545,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-8",
+      "label": "Dock with Gateway",
+      "epochUtc": "2029-03-14T15:57:43.818Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868198958259,
+      "nearestSampleOffsetMs": -694441,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868197388996,
+        "supportStopEpochMs": 1868198958259,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-9",
+      "label": "Transfer and activation",
+      "epochUtc": "2029-03-15T16:31:41.507Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868286836972,
+      "nearestSampleOffsetMs": -135465,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868285267709,
+        "supportStopEpochMs": 1868286836972,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-10",
+      "label": "Surface departure",
+      "epochUtc": "2029-03-16T17:05:39.195Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868374715686,
+      "nearestSampleOffsetMs": 423509,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868374715686,
+        "supportStopEpochMs": 1868376284949,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-11",
+      "label": "Surface / orbital split operations",
+      "epochUtc": "2029-03-17T17:39:36.883Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868464163662,
+      "nearestSampleOffsetMs": -586779,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868462594399,
+        "supportStopEpochMs": 1868464163662,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-12",
+      "label": "Surface ascent and redock",
+      "epochUtc": "2029-03-18T18:13:34.572Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868552965325,
+      "nearestSampleOffsetMs": -950753,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868549365325,
+        "supportStopEpochMs": 1868552965325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-13",
+      "label": "Prepare for Earth return",
+      "epochUtc": "2029-03-19T18:47:32.260Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868639365325,
+      "nearestSampleOffsetMs": 1086935,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868639365325,
+        "supportStopEpochMs": 1868642965325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-14",
+      "label": "Departure from NRHO",
+      "epochUtc": "2029-03-20T19:21:29.948Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868729365325,
+      "nearestSampleOffsetMs": -475377,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868725765325,
+        "supportStopEpochMs": 1868729365325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-15",
+      "label": "Return flyby and cruise",
+      "epochUtc": "2029-03-21T19:55:27.637Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868815765325,
+      "nearestSampleOffsetMs": 1562312,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868815765325,
+        "supportStopEpochMs": 1868819365325,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "phase-16",
+      "label": "Reentry and splashdown",
+      "epochUtc": "2029-03-22T20:29:25.325Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1868905765325,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1868905765325,
+        "supportStopEpochMs": 1868905765325,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-05T03:47:10Z"
+}

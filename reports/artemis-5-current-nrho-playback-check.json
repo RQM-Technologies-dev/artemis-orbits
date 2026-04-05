@@ -1,0 +1,76 @@
+{
+  "missionId": "artemis-5-current-nrho",
+  "baseMissionId": "artemis-5",
+  "missionPath": "data/normalized/artemis-5-current-nrho.json",
+  "eventsPath": "data/events/artemis-5-current-nrho.json",
+  "timeWindow": {
+    "startUtc": "2028-12-02T09:00:00.000Z",
+    "stopUtc": "2028-12-08T21:29:25.324Z",
+    "startEpochMs": 1859360400000,
+    "stopEpochMs": 1859923765325,
+    "durationSeconds": 563365.325
+  },
+  "sampleCount": 360,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 1569.263,
+  "eventChecks": [
+    {
+      "id": "current-nrho-cycle-start",
+      "label": "NRHO cycle start (proxy)",
+      "epochUtc": "2028-12-02T09:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859360400000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859360400000,
+        "supportStopEpochMs": 1859360400000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "current-nrho-perilune",
+      "label": "Perilune pass (~1,521 km altitude proxy)",
+      "epochUtc": "2028-12-02T09:00:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859360400000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859360400000,
+        "supportStopEpochMs": 1859360400000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "current-nrho-apolune",
+      "label": "Apolune segment (~69,356 km altitude proxy)",
+      "epochUtc": "2028-12-05T15:01:38.031Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859641298031,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859641298031,
+        "supportStopEpochMs": 1859641298031,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "current-nrho-cycle-end",
+      "label": "NRHO cycle end (proxy)",
+      "epochUtc": "2028-12-08T21:29:25.324Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1859923765325,
+      "nearestSampleOffsetMs": -1,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1859922196062,
+        "supportStopEpochMs": 1859923765325,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-05T03:47:10Z"
+}

@@ -18,6 +18,14 @@ REQUIRED_FILES = [
     'artemis-3-moon-legacy.json',
     'artemis-3-legacy-nrho.json',
     'artemis-3-moon-legacy-nrho.json',
+    'artemis-5-current.json',
+    'artemis-5-moon-current.json',
+    'artemis-5-current-nrho.json',
+    'artemis-5-moon-current-nrho.json',
+    'artemis-5-legacy.json',
+    'artemis-5-moon-legacy.json',
+    'artemis-5-legacy-nrho.json',
+    'artemis-5-moon-legacy-nrho.json',
     'manifest.json',
 ]
 
@@ -101,6 +109,15 @@ def main() -> int:
         if not artemis3_modes.issubset(seen):
             missing = sorted(artemis3_modes.difference(seen))
             errors.append(f'manifest.json missing Artemis III mode entries: {missing}')
+        artemis5_modes = {
+            'artemis-5-current',
+            'artemis-5-current-nrho',
+            'artemis-5-legacy',
+            'artemis-5-legacy-nrho',
+        }
+        if not artemis5_modes.issubset(seen):
+            missing = sorted(artemis5_modes.difference(seen))
+            errors.append(f'manifest.json missing Artemis V mode entries: {missing}')
 
     # Validate Artemis III mode datasets and matching moon vectors.
     artemis3_pairs = [
@@ -115,6 +132,23 @@ def main() -> int:
             errors.append(f'{mission_stub}.json mission.id must be artemis-3')
         if moon.get('mission', {}).get('id') != 'artemis-3':
             errors.append(f'{moon_stub}.json mission.id must be artemis-3')
+        errors.extend(validate_samples(mission, f'{mission_stub}.json'))
+        errors.extend(validate_samples(moon, f'{moon_stub}.json'))
+
+    # Validate Artemis V mode datasets and matching moon vectors.
+    artemis5_pairs = [
+        ('artemis-5-current', 'artemis-5-moon-current'),
+        ('artemis-5-current-nrho', 'artemis-5-moon-current-nrho'),
+        ('artemis-5-legacy', 'artemis-5-moon-legacy'),
+        ('artemis-5-legacy-nrho', 'artemis-5-moon-legacy-nrho'),
+    ]
+    for mission_stub, moon_stub in artemis5_pairs:
+        mission = load_json(normalized_dir / f'{mission_stub}.json')
+        moon = load_json(normalized_dir / f'{moon_stub}.json')
+        if mission.get('mission', {}).get('id') != 'artemis-5':
+            errors.append(f'{mission_stub}.json mission.id must be artemis-5')
+        if moon.get('mission', {}).get('id') != 'artemis-5':
+            errors.append(f'{moon_stub}.json mission.id must be artemis-5')
         errors.extend(validate_samples(mission, f'{mission_stub}.json'))
         errors.extend(validate_samples(moon, f'{moon_stub}.json'))
 
