@@ -47,15 +47,40 @@ export const MISSIONS = [
   {
     id: 'artemis-3',
     displayName: 'Artemis III',
-    status: 'planned',
-    enabled: false,
-    officialPageUrl: null,
+    status: 'official-current',
+    enabled: true,
+    officialPageUrl:
+      'https://www.nasa.gov/missions/artemis/artemis-iii/',
     officialZipUrl:  null,
-    normalizedPath:  null,
-    moonPath:        null,
-    eventsPath:      null,
-    rawFallbackPath: null,
-    summary: 'Placeholder for future nominal trajectory data.',
+    normalizedPath:  './data/normalized/artemis-3-current.json',
+    moonPath:        './data/normalized/artemis-3-moon-current.json',
+    eventsPath:      './data/events/artemis-3-current.json',
+    rawFallbackPath: './data/models/artemis-3-legacy-nrho-proxy-full.json',
+    artemis3Profiles: {
+      'current-leo': {
+        displayName: 'Current mission',
+        visualizationMode: 'current-leo',
+        normalizedPath: './data/normalized/artemis-3-current.json',
+        moonPath: './data/normalized/artemis-3-moon-current.json',
+        eventsPath: './data/events/artemis-3-current.json',
+      },
+      'legacy-cislunar': {
+        displayName: 'Archived lunar profile',
+        visualizationMode: 'legacy-cislunar',
+        normalizedPath: './data/normalized/artemis-3-legacy.json',
+        moonPath: './data/normalized/artemis-3-moon-legacy.json',
+        eventsPath: './data/events/artemis-3-legacy.json',
+      },
+      'legacy-nrho-detail': {
+        displayName: 'Archived NRHO detail',
+        visualizationMode: 'legacy-nrho-detail',
+        normalizedPath: './data/normalized/artemis-3-legacy-nrho.json',
+        moonPath: './data/normalized/artemis-3-moon-legacy-nrho.json',
+        eventsPath: './data/events/artemis-3-legacy-nrho.json',
+      },
+    },
+    summary:
+      '2027 low Earth orbit rendezvous and docking demonstration (current official mission) with an archived legacy lunar profile view.',
   },
   {
     id: 'artemis-4',

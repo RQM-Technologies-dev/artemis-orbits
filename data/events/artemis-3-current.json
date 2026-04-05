@@ -1,0 +1,42 @@
+[
+  {
+    "id": "official-current-window",
+    "label": "Artemis III current architecture window",
+    "epochUtc": "2027-03-01T12:00:00.000Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Current official Artemis III architecture: 2027 low Earth orbit rendezvous and docking demonstration.",
+    "description": "Official mission framing event used for timeline anchoring. Detailed mission design is pending NASA release."
+  },
+  {
+    "id": "leo-insertion-notional",
+    "label": "Notional LEO insertion",
+    "epochUtc": "2027-03-01T12:30:00.000Z",
+    "metSeconds": 1800,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Notional visualization event only; exact orbit details not public.",
+    "description": "Conceptual checkpoint for the current mission mode visualization."
+  },
+  {
+    "id": "rendezvous-docking-demo",
+    "label": "Rendezvous and docking demonstration",
+    "epochUtc": "2027-03-01T20:00:00.000Z",
+    "metSeconds": 28800,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Official mission purpose from current Artemis III architecture.",
+    "description": "Integrated operations demonstration between Orion and one or both commercial landers."
+  },
+  {
+    "id": "details-forthcoming",
+    "label": "Detailed mission design forthcoming",
+    "epochUtc": "2027-03-02T12:00:00.000Z",
+    "metSeconds": 86400,
+    "type": "system-boundary",
+    "verified": true,
+    "sourceNote": "NASA indicates mission design details will be released closer to launch.",
+    "description": "Current official data remains high level at this time."
+  }
+]

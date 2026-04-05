@@ -1,0 +1,76 @@
+{
+  "missionId": "artemis-3-current",
+  "baseMissionId": "artemis-3",
+  "missionPath": "data/normalized/artemis-3-current.json",
+  "eventsPath": "data/events/artemis-3-current.json",
+  "timeWindow": {
+    "startUtc": "2027-03-01T12:00:00.000Z",
+    "stopUtc": "2027-03-02T12:00:00.000Z",
+    "startEpochMs": 1803902400000,
+    "stopEpochMs": 1803988800000,
+    "durationSeconds": 86400.0
+  },
+  "sampleCount": 721,
+  "segmentCount": 1,
+  "nominalStepSecondsMedian": 120.0,
+  "eventChecks": [
+    {
+      "id": "official-current-window",
+      "label": "Artemis III current architecture window",
+      "epochUtc": "2027-03-01T12:00:00.000Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1803902400000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1803902400000,
+        "supportStopEpochMs": 1803902400000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "leo-insertion-notional",
+      "label": "Notional LEO insertion",
+      "epochUtc": "2027-03-01T12:30:00.000Z",
+      "verified": false,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1803904200000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1803904200000,
+        "supportStopEpochMs": 1803904200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "rendezvous-docking-demo",
+      "label": "Rendezvous and docking demonstration",
+      "epochUtc": "2027-03-01T20:00:00.000Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1803931200000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1803931200000,
+        "supportStopEpochMs": 1803931200000,
+        "insideSupportWindow": true
+      }
+    },
+    {
+      "id": "details-forthcoming",
+      "label": "Detailed mission design forthcoming",
+      "epochUtc": "2027-03-02T12:00:00.000Z",
+      "verified": true,
+      "rangeStatus": "inside-range",
+      "nearestSampleEpochMs": 1803988800000,
+      "nearestSampleOffsetMs": 0,
+      "interpolationSupport": {
+        "supportStartEpochMs": 1803988800000,
+        "supportStopEpochMs": 1803988800000,
+        "insideSupportWindow": true
+      }
+    }
+  ],
+  "warnings": [],
+  "generatedAtUtc": "2026-04-05T02:15:24Z"
+}

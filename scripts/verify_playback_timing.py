@@ -52,7 +52,8 @@ def support_window(samples: list[dict], event_ms: int) -> dict | None:
 
 def run_check(mission_path: Path, events_path: Path | None, reports_dir: Path) -> tuple[dict, Path]:
     mission = json.loads(mission_path.read_text(encoding='utf-8'))
-    mission_id = mission.get('mission', {}).get('id', mission_path.stem)
+    mission_id = mission_path.stem
+    base_mission_id = mission.get('mission', {}).get('id', mission_id)
 
     samples = flatten_samples(mission)
     segment_count = len(mission.get('segments') or [])
@@ -101,6 +102,7 @@ def run_check(mission_path: Path, events_path: Path | None, reports_dir: Path) -
 
     report = {
         'missionId': mission_id,
+        'baseMissionId': base_mission_id,
         'missionPath': str(mission_path),
         'eventsPath': str(events_path) if events_path else None,
         'timeWindow': {
@@ -139,7 +141,7 @@ def print_report(report: dict, out_path: Path) -> None:
 
 def default_jobs(normalized_dir: Path) -> list[tuple[Path, Path]]:
     jobs = []
-    for mission_id in ('artemis-1', 'artemis-2'):
+    for mission_id in ('artemis-1', 'artemis-2', 'artemis-3-current', 'artemis-3-legacy', 'artemis-3-legacy-nrho'):
         mission_path = normalized_dir / f'{mission_id}.json'
         events_path = Path('data/events') / f'{mission_id}.json'
         jobs.append((mission_path, events_path))

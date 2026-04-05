@@ -76,6 +76,9 @@ const DEFAULT_FOLLOW_MODE_BY_MISSION = {
 };
 const LUNAR_ORBIT_PERIOD_MS = Math.round(27.321661 * 24 * 60 * 60 * 1000);
 const ARTEMIS_II_FULL_MOON_ORBIT_POINTS = 540;
+const ARTEMIS_3_MODEL_PATH = './data/models/artemis-3-mission-model.json';
+const ARTEMIS_3_PROFILE_DEFAULT = 'current-leo';
+const ARTEMIS_3_PROFILE_MODES = ['current-leo', 'legacy-cislunar', 'legacy-nrho-detail'];
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -102,6 +105,10 @@ const state = {
     eventsLoaded: false,
     lastError: '',
   },
+  artemis3: {
+    model: null,
+    profileMode: ARTEMIS_3_PROFILE_DEFAULT,
+  },
   ui: {
     performanceMode: 'auto',
     followCamera: false,
@@ -114,6 +121,7 @@ const state = {
     visualPreset: 'bright',
     zoomLevel: 0.5,
     liveMode: false,
+    artemis3Mode: ARTEMIS_3_PROFILE_DEFAULT,
   },
 };
 
@@ -177,6 +185,7 @@ function getDomRefs() {
     tabBar: pick('mission-tabs'),
     canvas: pick('three-canvas'),
     overlayMsg: pick('scene-overlay-msg'),
+    sceneDisclaimer: pickOptional('scene-mode-disclaimer'),
     debugOverlay: pickOptional('scene-debug-overlay'),
     sbTitle: pick('sb-mission-title'),
     sbSummary: pick('sb-mission-summary'),
@@ -230,6 +239,21 @@ function getDomRefs() {
     voiceVolumeValue: pickOptional('voice-volume-value'),
     ttsStatus: pickOptional('tts-status'),
     annotationList: pick('mission-annotations'),
+    artemis3Card: pickOptional('artemis3-card'),
+    artemis3Subtitle: pickOptional('artemis3-subtitle'),
+    artemis3StatusBadge: pickOptional('artemis3-status-badge'),
+    artemis3ProfileNote: pickOptional('artemis3-profile-note'),
+    btnA3Current: pickOptional('btn-a3-current'),
+    btnA3Legacy: pickOptional('btn-a3-legacy'),
+    btnA3Nrho: pickOptional('btn-a3-nrho'),
+    artemis3SummaryList: pickOptional('artemis3-summary-list'),
+    artemis3PhaseList: pickOptional('artemis3-phase-list'),
+    artemis3FactsList: pickOptional('artemis3-facts-list'),
+    artemis3LandingSection: pickOptional('artemis3-landing-section'),
+    artemis3LandingList: pickOptional('artemis3-landing-list'),
+    a3SourcesOfficial: pickOptional('a3-sources-official'),
+    a3SourcesArchived: pickOptional('a3-sources-archived'),
+    a3SourcesProxy: pickOptional('a3-sources-proxy'),
   };
 }
 
@@ -505,10 +529,346 @@ function buildTabs() {
   }
 }
 
+function buildArtemis3ProfileToggle() {
+  const isArtemis3 = state.activeMissionId === 'artemis-3';
+  if (!refs.artemis3Card) return;
+  refs.artemis3Card.classList.toggle('hidden', !isArtemis3);
+  const mode = state.ui.artemis3Mode;
+  const map = [
+    [refs.btnA3Current, 'current-leo'],
+    [refs.btnA3Legacy, 'legacy-cislunar'],
+    [refs.btnA3Nrho, 'legacy-nrho-detail'],
+  ];
+  for (const [btn, key] of map) {
+    if (!btn) continue;
+    const active = key === mode;
+    btn.classList.toggle('is-toggled', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+}
+
+function setSceneModeDisclaimer(text = '', { tone = 'warn' } = {}) {
+  if (!refs.sceneDisclaimer) return;
+  const normalized = String(text || '').trim();
+  if (!normalized) {
+    refs.sceneDisclaimer.textContent = '';
+    refs.sceneDisclaimer.classList.add('hidden');
+    refs.sceneDisclaimer.classList.remove('disclaimer-official', 'disclaimer-archived');
+    return;
+  }
+  refs.sceneDisclaimer.textContent = normalized;
+  refs.sceneDisclaimer.classList.remove('hidden');
+  refs.sceneDisclaimer.classList.toggle('disclaimer-official', tone === 'official');
+  refs.sceneDisclaimer.classList.toggle('disclaimer-archived', tone === 'archived');
+}
+
+async function loadArtemis3Model() {
+  if (state.artemis3.model) return state.artemis3.model;
+  const loaded = await loadJson(ARTEMIS_3_MODEL_PATH);
+  state.artemis3.model = loaded || null;
+  return state.artemis3.model;
+}
+
+function getArtemis3ProfileConfig(mission, mode) {
+  const profiles = mission?.artemis3Profiles || {};
+  if (profiles[mode]) return profiles[mode];
+  return profiles[ARTEMIS_3_PROFILE_DEFAULT] || null;
+}
+
+function getMissionDataPaths(mission) {
+  if (mission?.id !== 'artemis-3') {
+    return {
+      normalizedPath: mission?.normalizedPath || null,
+      moonPath: mission?.moonPath || null,
+      eventsPath: mission?.eventsPath || null,
+      mode: null,
+    };
+  }
+  const mode = ARTEMIS_3_PROFILE_MODES.includes(state.ui.artemis3Mode)
+    ? state.ui.artemis3Mode
+    : ARTEMIS_3_PROFILE_DEFAULT;
+  const profile = getArtemis3ProfileConfig(mission, mode);
+  if (!profile) {
+    return {
+      normalizedPath: mission.normalizedPath,
+      moonPath: mission.moonPath,
+      eventsPath: mission.eventsPath,
+      mode: ARTEMIS_3_PROFILE_DEFAULT,
+    };
+  }
+  return {
+    normalizedPath: profile.normalizedPath,
+    moonPath: profile.moonPath,
+    eventsPath: profile.eventsPath,
+    mode,
+  };
+}
+
+async function switchArtemis3Profile(nextMode) {
+  if (state.activeMissionId !== 'artemis-3') return;
+  const normalized = ARTEMIS_3_PROFILE_MODES.includes(nextMode) ? nextMode : ARTEMIS_3_PROFILE_DEFAULT;
+  if (state.ui.artemis3Mode === normalized) {
+    buildArtemis3ProfileToggle();
+    renderArtemis3Content();
+    return;
+  }
+  state.ui.artemis3Mode = normalized;
+  state.artemis3.profileMode = normalized;
+  syncUrlState();
+  await selectMission('artemis-3');
+}
+
+function renderArtemis3Content() {
+  if (!refs.artemis3Card) return;
+  const isArtemis3 = state.activeMissionId === 'artemis-3';
+  refs.artemis3Card.classList.toggle('hidden', !isArtemis3);
+  if (!isArtemis3) {
+    setSceneModeDisclaimer('', { tone: 'warn' });
+    return;
+  }
+
+  const model = state.artemis3.model || {};
+  const current = model.current_official || {};
+  const legacy = model.legacy_lunar_profile || {};
+  const mode = ARTEMIS_3_PROFILE_MODES.includes(state.ui.artemis3Mode)
+    ? state.ui.artemis3Mode
+    : ARTEMIS_3_PROFILE_DEFAULT;
+
+  const descriptor = {
+    'current-leo': {
+      subtitle: '2027 low Earth orbit rendezvous and docking demonstration',
+      badge: 'Current official mission',
+      badgeClass: 'a3-badge-official',
+      note: 'Notional visualization — NASA has not yet released the exact Artemis III orbit.',
+      disclaimerTone: 'official',
+    },
+    'legacy-cislunar': {
+      subtitle: 'Archived lunar south-pole profile (legacy NASA architecture)',
+      badge: 'Archived legacy profile',
+      badgeClass: 'a3-badge-archived',
+      note: 'Archived/legacy lunar trajectory shown with proxy-derived NRHO staging behavior. Not exact Artemis III ephemeris.',
+      disclaimerTone: 'archived',
+    },
+    'legacy-nrho-detail': {
+      subtitle: 'Archived NRHO detail (representative proxy cycle)',
+      badge: 'Proxy-derived NRHO view',
+      badgeClass: 'a3-badge-proxy',
+      note: 'Representative single-revolution southern 9:2 NRHO cycle from public NASA sample data. Not exact Artemis III ephemeris.',
+      disclaimerTone: 'archived',
+    },
+  }[mode];
+
+  if (refs.artemis3Subtitle) refs.artemis3Subtitle.textContent = descriptor.subtitle;
+  if (refs.artemis3StatusBadge) {
+    refs.artemis3StatusBadge.textContent = descriptor.badge;
+    refs.artemis3StatusBadge.classList.remove('a3-badge-official', 'a3-badge-archived', 'a3-badge-proxy');
+    refs.artemis3StatusBadge.classList.add(descriptor.badgeClass);
+  }
+  if (refs.artemis3ProfileNote) refs.artemis3ProfileNote.textContent = descriptor.note;
+  setSceneModeDisclaimer(descriptor.note, { tone: descriptor.disclaimerTone });
+
+  buildArtemis3ProfileToggle();
+  renderArtemis3Summary(mode, current, legacy);
+  renderArtemis3Timeline(mode, current, legacy);
+  renderArtemis3Facts(mode, current, legacy);
+  renderArtemis3LandingRegions(mode, legacy);
+  renderArtemis3Sources(mode);
+}
+
+function renderArtemis3Summary(mode, current, legacy) {
+  if (!refs.artemis3SummaryList) return;
+  const items = [];
+  if (mode === 'current-leo') {
+    items.push('Launch year: 2027');
+    items.push('Mission type: Rendezvous and Docking in Low Earth Orbit');
+    items.push('Main spacecraft: SLS, Orion, and one or both commercial landers');
+    items.push('Detailed mission design not yet released by NASA');
+    if (current?.summary) items.push(current.summary);
+  } else {
+    items.push('Archived concept: crewed lunar south-pole mission profile');
+    items.push('Orion staging orbit: Near-Rectilinear Halo Orbit (NRHO)');
+    items.push('Representative NRHO period: about 6.5 days');
+    items.push('Crew architecture: 2 crew to surface / 2 remain in Orion');
+    items.push('Return sequence: NRHO departure, lunar flyby, Earth reentry');
+    if (legacy?.summary) items.push(legacy.summary);
+  }
+  refs.artemis3SummaryList.innerHTML = '';
+  for (const text of items) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    refs.artemis3SummaryList.appendChild(li);
+  }
+}
+
+function renderArtemis3Timeline(mode, current, legacy) {
+  if (!refs.artemis3PhaseList) return;
+  refs.artemis3PhaseList.innerHTML = '';
+  const phases = [];
+  if (mode === 'current-leo') {
+    phases.push({ id: 1, label: 'Launch and ascent', summary: 'SLS launches Orion to mission orbit profile.' });
+    phases.push({ id: 2, label: 'LEO rendezvous operations', summary: 'Orion conducts integrated rendezvous and docking demonstrations.' });
+    phases.push({ id: 3, label: 'Details forthcoming', summary: 'NASA will publish final mission design details closer to launch.' });
+  } else {
+    const source = Array.isArray(legacy?.phases) ? legacy.phases : [];
+    for (const p of source) phases.push({ id: p.id, label: p.label, summary: p.summary, vehicle: p.vehicle });
+  }
+  for (const phase of phases) {
+    const li = document.createElement('li');
+    li.tabIndex = 0;
+    li.className = 'a3-timeline-item';
+    const heading = document.createElement('div');
+    heading.className = 'a3-timeline-label';
+    heading.textContent = `${phase.id}. ${phase.label}`;
+    const detail = document.createElement('div');
+    detail.className = 'a3-timeline-detail';
+    detail.textContent = phase.summary || 'Details forthcoming';
+    li.appendChild(heading);
+    li.appendChild(detail);
+    if (phase.vehicle) {
+      const vehicle = document.createElement('div');
+      vehicle.className = 'a3-timeline-vehicle';
+      vehicle.textContent = `Vehicle: ${phase.vehicle}`;
+      li.appendChild(vehicle);
+    }
+    refs.artemis3PhaseList.appendChild(li);
+  }
+}
+
+function renderArtemis3Facts(mode, current, legacy) {
+  if (!refs.artemis3FactsList) return;
+  refs.artemis3FactsList.innerHTML = '';
+  const facts = [];
+  if (mode === 'current-leo') {
+    facts.push('Official current facts: Artemis III is presently defined as a 2027 LEO rendezvous and docking mission.');
+    facts.push('NASA has not publicly released exact altitude, inclination, phasing, or ephemeris for the current mission.');
+    facts.push('Visualization mode: notional current-leo scene for conceptual understanding.');
+  } else {
+    const orbit = legacy?.orion_staging_orbit || {};
+    facts.push('Archived NASA profile: lunar south-pole architecture used Orion staging in a southern 9:2 NRHO family.');
+    facts.push(`Representative proxy period: about ${orbit.period_days_public || 6.5} days.`);
+    facts.push('NRHO rationale in public material: robust Earth communications, eclipse management, and south-pole access.');
+    if (mode === 'legacy-cislunar') {
+      facts.push('Visualization mode: reconstructed legacy-cislunar path based on archived phase sequencing plus proxy NRHO behavior.');
+    } else {
+      facts.push('Visualization mode: legacy-nrho-detail one-cycle proxy track derived from public NASA sample NRHO data.');
+    }
+    facts.push('Proxy note: plotted NRHO tracks are derived proxies and are not exact Artemis III ephemeris.');
+  }
+  for (const fact of facts) {
+    const li = document.createElement('li');
+    li.textContent = fact;
+    refs.artemis3FactsList.appendChild(li);
+  }
+}
+
+function renderArtemis3LandingRegions(mode, legacy) {
+  if (!refs.artemis3LandingSection || !refs.artemis3LandingList) return;
+  const show = mode !== 'current-leo';
+  refs.artemis3LandingSection.classList.toggle('hidden', !show);
+  refs.artemis3LandingList.innerHTML = '';
+  if (!show) return;
+  const regions = Array.isArray(legacy?.candidate_landing_regions_2024)
+    ? legacy.candidate_landing_regions_2024
+    : [];
+  for (const name of regions) {
+    const li = document.createElement('li');
+    li.textContent = name;
+    refs.artemis3LandingList.appendChild(li);
+  }
+}
+
+function appendSourceEntries(container, entries = []) {
+  if (!container) return;
+  container.innerHTML = '';
+  for (const entry of entries) {
+    const li = document.createElement('li');
+    if (entry.href) {
+      const a = document.createElement('a');
+      a.href = entry.href;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = entry.label;
+      li.appendChild(a);
+    } else {
+      li.textContent = entry.label;
+    }
+    if (entry.note) {
+      const note = document.createElement('div');
+      note.className = 'annotation-note';
+      note.textContent = entry.note;
+      li.appendChild(note);
+    }
+    container.appendChild(li);
+  }
+}
+
+function renderArtemis3Sources(mode) {
+  const missionModelPath = './data/models/artemis-3-mission-model.json';
+  const proxyCyclePath = './data/models/artemis-3-legacy-nrho-proxy-cycle.json';
+  const proxyFullPath = './data/models/artemis-3-legacy-nrho-proxy-full.json';
+  appendSourceEntries(refs.a3SourcesOfficial, [
+    {
+      label: 'NASA Artemis III mission page',
+      href: 'https://www.nasa.gov/missions/artemis/artemis-iii/',
+      note: 'Current official mission framing: 2027 low Earth orbit rendezvous and docking demonstration.',
+    },
+    {
+      label: 'Artemis III mission model (local JSON)',
+      href: missionModelPath,
+      note: 'Structured current-vs-legacy mission facts used by this tab.',
+    },
+  ]);
+  appendSourceEntries(refs.a3SourcesArchived, [
+    {
+      label: 'Archived Artemis III lunar concept (NASA page context)',
+      href: 'https://www.nasa.gov/missions/artemis/artemis-iii/',
+      note: 'Archived sections preserve earlier lunar south-pole mission architecture context.',
+    },
+    {
+      label: 'Legacy phase sequence (mission model JSON)',
+      href: missionModelPath,
+      note: 'Phase-level mission sequence for archived visualization.',
+    },
+  ]);
+  appendSourceEntries(refs.a3SourcesProxy, [
+    {
+      label: 'Proxy NRHO representative cycle JSON',
+      href: proxyCyclePath,
+      note: 'Derived from NASA public sample NRHO data (representative cycle).',
+    },
+    {
+      label: 'Proxy NRHO full decimated sample JSON',
+      href: proxyFullPath,
+      note: 'Decimated proxy sample for additional orbit-family context.',
+    },
+    {
+      label: mode === 'current-leo'
+        ? 'Current mode note: no exact public Artemis III ephemeris released'
+        : 'Legacy mode note: proxy data shown here is derived and not exact mission ephemeris',
+      note: 'Labeling intentionally separates official current facts, archived material, and proxy-derived trajectory data.',
+    },
+  ]);
+}
+
 function wireUiEvents() {
   setEventMarkerClickHandler(({ eventId }) => {
     jumpToEventById(eventId);
   });
+  if (refs.btnA3Current) {
+    refs.btnA3Current.addEventListener('click', () => {
+      switchArtemis3Profile('current-leo').catch((error) => handleStartupError('Artemis III profile switch failed', error));
+    });
+  }
+  if (refs.btnA3Legacy) {
+    refs.btnA3Legacy.addEventListener('click', () => {
+      switchArtemis3Profile('legacy-cislunar').catch((error) => handleStartupError('Artemis III profile switch failed', error));
+    });
+  }
+  if (refs.btnA3Nrho) {
+    refs.btnA3Nrho.addEventListener('click', () => {
+      switchArtemis3Profile('legacy-nrho-detail').catch((error) => handleStartupError('Artemis III profile switch failed', error));
+    });
+  }
   refs.btnPlay.addEventListener('click', () => {
     if (!hasMissionTimeline()) {
       setSidebarStatus('Playback unavailable — mission data not loaded');
@@ -704,6 +1064,11 @@ async function selectMission(id) {
   const mission = MISSIONS.find((m) => m.id === id);
   if (!mission) return;
   state.activeMissionId = id;
+  if (mission.id === 'artemis-3' && !ARTEMIS_3_PROFILE_MODES.includes(state.ui.artemis3Mode)) {
+    state.ui.artemis3Mode = ARTEMIS_3_PROFILE_DEFAULT;
+    state.artemis3.profileMode = state.ui.artemis3Mode;
+  }
+  buildArtemis3ProfileToggle();
 
   setActiveTab(id);
   resetLoadedMissionState();
@@ -716,13 +1081,22 @@ async function selectMission(id) {
   if (!mission.enabled) {
     showOverlay(`${mission.displayName} — ${mission.summary}`);
     setSidebarStatus('Mission JSON missing');
+    renderArtemis3Content();
     return;
   }
 
   setSidebarStatus('Fallback scene active — waiting for mission data');
+  if (mission.id === 'artemis-3') {
+    try {
+      await loadArtemis3Model();
+    } catch (error) {
+      setErrorMessage(`Artemis III model load failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const dataPaths = getMissionDataPaths(mission);
 
   try {
-    state.missionData = await loadMissionData(mission.normalizedPath);
+    state.missionData = await loadMissionData(dataPaths.normalizedPath);
     state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
   } catch (error) {
     handleStartupError('Mission JSON load failed', error);
@@ -731,14 +1105,14 @@ async function selectMission(id) {
 
   let loadedEvents = null;
   try {
-    state.moonData = await loadMissionData(mission.moonPath);
+    state.moonData = await loadMissionData(dataPaths.moonPath);
     state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
   } catch (error) {
     setErrorMessage(`Moon JSON load failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   try {
-    loadedEvents = await loadJson(mission.eventsPath);
+    loadedEvents = await loadJson(dataPaths.eventsPath);
     state.events = sortEvents(loadedEvents);
     state.diagnostics.eventsLoaded = Boolean(loadedEvents);
   } catch (error) {
@@ -789,11 +1163,15 @@ async function selectMission(id) {
   }
   updateScene();
   refreshMissionAnnotations(mission);
+  renderArtemis3Content();
   applyInitialTimeOverrideFromUrl();
   if (state.ui.liveMode) setLiveModeUi(true, { sync: false, status: false });
   syncUrlState();
 
-  const missionLabel = mission.id === 'artemis-1' ? 'Mission scene active — Artemis I' : 'Mission scene active — Artemis II';
+  const artemis3Profile = getArtemis3ProfileConfig(mission, state.ui.artemis3Mode);
+  const missionLabel = mission.id === 'artemis-3'
+    ? `Mission scene active — Artemis III (${artemis3Profile?.displayName || 'Current mission'})`
+    : `Mission scene active — ${mission.displayName}`;
   setSidebarStatus(missionLabel);
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
@@ -1194,8 +1572,13 @@ function parseInitialUiStateFromUrl() {
   const voice = params.get('voice');
   const voiceVol = params.get('voiceVol');
   const live = params.get('live');
+  const a3mode = params.get('a3mode');
   const candidateMission = MISSIONS.find((m) => m.id === mission && m.enabled)?.id;
   if (candidateMission) state.activeMissionId = candidateMission;
+  if (ARTEMIS_3_PROFILE_MODES.includes(a3mode || '')) {
+    state.ui.artemis3Mode = a3mode;
+    state.artemis3.profileMode = a3mode;
+  }
   const speedMatch = SPEED_OPTIONS.find((opt) => String(opt.missionMsPerWallSecond) === String(speed));
   if (speedMatch) refs.speedSelect.value = String(speedMatch.missionMsPerWallSecond);
   if (['auto', 'high', 'balanced', 'low'].includes(perf || '')) {
@@ -1262,6 +1645,11 @@ function syncUrlState() {
   params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
   params.set('vpreset', state.ui.visualPreset || getVisualPreset());
   params.set('live', state.ui.liveMode ? '1' : '0');
+  if (state.activeMissionId === 'artemis-3') {
+    params.set('a3mode', state.ui.artemis3Mode || ARTEMIS_3_PROFILE_DEFAULT);
+  } else {
+    params.delete('a3mode');
+  }
   const query = params.toString();
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
   if (_lastSyncedUrl !== next) {

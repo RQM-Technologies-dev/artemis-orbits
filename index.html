@@ -55,6 +55,7 @@
         <p id="sb-status-msg" class="status-msg">—</p>
       </section>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
+      <div id="scene-mode-disclaimer" class="scene-mode-disclaimer hidden" aria-live="polite"></div>
       <div id="scene-telemetry" aria-live="polite">
         <div class="scene-hud-meta">
           <div class="scene-phase" id="sb-phase">Phase: —</div>
@@ -204,6 +205,60 @@
       <div class="card" id="annotations-card">
         <h3>Mission annotations</h3>
         <ul id="mission-annotations" class="annotation-list"></ul>
+      </div>
+
+      <div class="card artemis3-card hidden" id="artemis3-card" aria-live="polite">
+        <div class="artemis3-hero">
+          <div>
+            <h3>Artemis III</h3>
+            <p id="artemis3-subtitle" class="muted">2027 low Earth orbit rendezvous and docking demonstration</p>
+          </div>
+          <span id="artemis3-status-badge" class="a3-badge a3-badge-official">Current official mission</span>
+        </div>
+        <div class="artemis3-profile-toggle" role="tablist" aria-label="Artemis III profile mode">
+          <button id="btn-a3-current" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="true">Current mission</button>
+          <button id="btn-a3-legacy" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="false">Archived lunar profile</button>
+          <button id="btn-a3-nrho" class="btn btn-sm a3-toggle-btn" type="button" role="tab" aria-selected="false">Archived NRHO detail</button>
+        </div>
+        <p id="artemis3-profile-note" class="artemis3-profile-note">Notional visualization — NASA has not yet released the exact Artemis III orbit.</p>
+
+        <section class="artemis3-section" aria-labelledby="a3-summary-heading">
+          <h4 id="a3-summary-heading">Mission summary</h4>
+          <ul id="artemis3-summary-list" class="a3-list"></ul>
+        </section>
+
+        <section class="artemis3-section" aria-labelledby="a3-timeline-heading">
+          <h4 id="a3-timeline-heading">Phase timeline</h4>
+          <ol id="artemis3-phase-list" class="a3-timeline"></ol>
+        </section>
+
+        <section class="artemis3-section" aria-labelledby="a3-facts-heading">
+          <h4 id="a3-facts-heading">Orbit facts and technical notes</h4>
+          <ul id="artemis3-facts-list" class="a3-list"></ul>
+        </section>
+
+        <section class="artemis3-section hidden" id="artemis3-landing-section" aria-labelledby="a3-landing-heading">
+          <h4 id="a3-landing-heading">Candidate landing regions (archived)</h4>
+          <ul id="artemis3-landing-list" class="a3-landing-grid"></ul>
+        </section>
+
+        <details id="artemis3-sources" class="a3-sources">
+          <summary>Sources and research notes</summary>
+          <div class="a3-sources-grid">
+            <section>
+              <h5>Current official NASA sources</h5>
+              <ul id="a3-sources-official" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Archived NASA sources</h5>
+              <ul id="a3-sources-archived" class="a3-source-list"></ul>
+            </section>
+            <section>
+              <h5>Technical / proxy orbit sources</h5>
+              <ul id="a3-sources-proxy" class="a3-source-list"></ul>
+            </section>
+          </div>
+        </details>
       </div>
     </aside>
   </main>
