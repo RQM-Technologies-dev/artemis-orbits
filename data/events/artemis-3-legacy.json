@@ -1,0 +1,192 @@
+[
+  {
+    "id": "legacy-phase-1",
+    "label": "Launch",
+    "epochUtc": "2025-10-01T13:00:00.000Z",
+    "metSeconds": 0,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Launch from Kennedy Space Center. Vehicle: SLS + Orion."
+  },
+  {
+    "id": "legacy-phase-2",
+    "label": "Ascent staging",
+    "epochUtc": "2025-10-02T22:20:00.000Z",
+    "metSeconds": 120000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Booster/fairing/LAS jettison, then core stage shutdown and separation. Vehicle: SLS."
+  },
+  {
+    "id": "legacy-phase-3",
+    "label": "Temporary Earth orbit",
+    "epochUtc": "2025-10-04T07:40:00.000Z",
+    "metSeconds": 240000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Enter Earth orbit, perform systems checks and solar panel adjustments. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-4",
+    "label": "Translunar injection",
+    "epochUtc": "2025-10-05T17:00:00.000Z",
+    "metSeconds": 360000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Depart Earth orbit for the Moon. Vehicle: Orion / ICPS."
+  },
+  {
+    "id": "legacy-phase-5",
+    "label": "Outbound translunar cruise",
+    "epochUtc": "2025-10-07T02:20:00.000Z",
+    "metSeconds": 480000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Several outbound correction burns on the way to the Moon. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-6",
+    "label": "Outbound powered flyby",
+    "epochUtc": "2025-10-08T11:40:00.000Z",
+    "metSeconds": 600000,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Lunar flyby maneuver near the Moon. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-7",
+    "label": "NRHO insertion",
+    "epochUtc": "2025-10-09T21:00:00.000Z",
+    "metSeconds": 720000,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Insert into lunar near-rectilinear halo orbit. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-8",
+    "label": "Lander ready in NRHO",
+    "epochUtc": "2025-10-11T06:20:00.000Z",
+    "metSeconds": 840000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "HLS has already reached NRHO before crew arrival in the archived concept. Vehicle: Starship HLS."
+  },
+  {
+    "id": "legacy-phase-9",
+    "label": "Dock / crew transfer",
+    "epochUtc": "2025-10-12T15:40:00.000Z",
+    "metSeconds": 960000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Orion docks to HLS; two crew transfer. Vehicle: Orion + HLS."
+  },
+  {
+    "id": "legacy-phase-10",
+    "label": "Descent staging",
+    "epochUtc": "2025-10-14T01:00:00.000Z",
+    "metSeconds": 1080000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Undock, depart NRHO, and head toward low lunar orbit / descent. Vehicle: HLS."
+  },
+  {
+    "id": "legacy-phase-11",
+    "label": "Surface mission",
+    "epochUtc": "2025-10-15T10:20:00.000Z",
+    "metSeconds": 1200000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Approx. week-long surface mission near lunar South Pole. Vehicle: HLS."
+  },
+  {
+    "id": "legacy-phase-12",
+    "label": "Orion loiter",
+    "epochUtc": "2025-10-16T19:40:00.000Z",
+    "metSeconds": 1320000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Orion remains in NRHO for about one orbit (~6.5 days). Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-13",
+    "label": "Ascent / rendezvous",
+    "epochUtc": "2025-10-18T05:00:00.000Z",
+    "metSeconds": 1440000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Ascend from the surface, rendezvous, and dock back with Orion. Vehicle: HLS."
+  },
+  {
+    "id": "legacy-phase-14",
+    "label": "Post-docking loiter",
+    "epochUtc": "2025-10-19T14:20:00.000Z",
+    "metSeconds": 1560000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Up to five days in lunar orbit preparing for return. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-15",
+    "label": "NRHO departure",
+    "epochUtc": "2025-10-20T23:40:00.000Z",
+    "metSeconds": 1680000,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Depart NRHO at the optimal point for Earth return. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-16",
+    "label": "Return powered flyby",
+    "epochUtc": "2025-10-22T09:00:00.000Z",
+    "metSeconds": 1800000,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Powered flyby near the Moon to target Earth return. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-17",
+    "label": "Return correction",
+    "epochUtc": "2025-10-23T18:20:00.000Z",
+    "metSeconds": 1920000,
+    "type": "burn",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Final return trajectory correction burn. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-18",
+    "label": "Service module separation",
+    "epochUtc": "2025-10-25T03:40:00.000Z",
+    "metSeconds": 2040000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Crew module separates before atmospheric entry. Vehicle: Orion."
+  },
+  {
+    "id": "legacy-phase-19",
+    "label": "Entry and splashdown",
+    "epochUtc": "2025-10-26T13:00:00.000Z",
+    "metSeconds": 2160000,
+    "type": "milestone",
+    "verified": false,
+    "sourceNote": "Archived phase sequence from legacy Artemis III lunar profile; timings are reconstructed/notional.",
+    "description": "Earth entry and Pacific splashdown. Vehicle: Orion Crew Module."
+  }
+]

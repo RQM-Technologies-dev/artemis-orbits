@@ -12,6 +12,12 @@ REQUIRED_FILES = [
     'artemis-1-moon.json',
     'artemis-2.json',
     'artemis-2-moon.json',
+    'artemis-3-current.json',
+    'artemis-3-moon-current.json',
+    'artemis-3-legacy.json',
+    'artemis-3-moon-legacy.json',
+    'artemis-3-legacy-nrho.json',
+    'artemis-3-moon-legacy-nrho.json',
     'manifest.json',
 ]
 
@@ -87,6 +93,30 @@ def main() -> int:
         for mission_id in mission_ids:
             if mission_id not in seen:
                 errors.append(f'manifest.json missing missionId {mission_id}')
+        artemis3_modes = {
+            'artemis-3-current',
+            'artemis-3-legacy',
+            'artemis-3-legacy-nrho',
+        }
+        if not artemis3_modes.issubset(seen):
+            missing = sorted(artemis3_modes.difference(seen))
+            errors.append(f'manifest.json missing Artemis III mode entries: {missing}')
+
+    # Validate Artemis III mode datasets and matching moon vectors.
+    artemis3_pairs = [
+        ('artemis-3-current', 'artemis-3-moon-current'),
+        ('artemis-3-legacy', 'artemis-3-moon-legacy'),
+        ('artemis-3-legacy-nrho', 'artemis-3-moon-legacy-nrho'),
+    ]
+    for mission_stub, moon_stub in artemis3_pairs:
+        mission = load_json(normalized_dir / f'{mission_stub}.json')
+        moon = load_json(normalized_dir / f'{moon_stub}.json')
+        if mission.get('mission', {}).get('id') != 'artemis-3':
+            errors.append(f'{mission_stub}.json mission.id must be artemis-3')
+        if moon.get('mission', {}).get('id') != 'artemis-3':
+            errors.append(f'{moon_stub}.json mission.id must be artemis-3')
+        errors.extend(validate_samples(mission, f'{mission_stub}.json'))
+        errors.extend(validate_samples(moon, f'{moon_stub}.json'))
 
     if errors:
         for err in errors:

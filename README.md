@@ -10,6 +10,7 @@ Static NASA Artemis trajectory viewer (Earth/Moon/Orion) driven by normalized OE
 |---|---|---|
 | Artemis I | https://www.nasa.gov/missions/artemis/orion/track-nasas-artemis-i-mission-in-real-time/ | https://www.nasa.gov/wp-content/uploads/2022/08/post-tli-orion-asflown-20221213-eph-oem.zip |
 | Artemis II | https://www.nasa.gov/missions/artemis/artemis-2/track-nasas-artemis-ii-mission-in-real-time/ | https://www.nasa.gov/wp-content/uploads/2026/03/artemis-ii-oem-2026-04-04-to-ei.zip |
+| Artemis III (current official) | https://www.nasa.gov/missions/artemis/artemis-iii/ | No public OEM released yet (visualization uses clearly labeled notional/proxy data) |
 
 Moon vectors: JPL Horizons API (target 301, center 500@399, J2000, KM-S).
 
@@ -83,7 +84,10 @@ Fallback note: even if `data/normalized/*.json` has not been committed yet (or f
 ## Data notes
 
 - Artemis I and Artemis II are enabled and expected to use normalized official NASA OEM trajectories.
-- Artemis III–V remain disabled placeholders.
+- Artemis III is enabled with dual-mode content:
+  - **Current mission (default):** 2027 LEO rendezvous/docking demonstration, explicitly marked notional (no public exact orbit design yet).
+  - **Archived legacy profile:** older lunar south-pole architecture, clearly labeled archived/legacy with proxy-derived NRHO trajectory views.
+- Artemis IV–V remain disabled placeholders.
 - Interpolation stays segment-local only (never across OEM segment boundaries).
 - Gap times are handled explicitly so playback does not draw fake motion across missing spans.
 

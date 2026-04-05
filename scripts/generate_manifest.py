@@ -12,22 +12,31 @@ from pathlib import Path
 def build_manifest(normalized_dir: Path) -> dict:
     missions = []
     for mission_file in sorted(normalized_dir.glob('artemis-*.json')):
-        if mission_file.name.endswith('-moon.json'):
+        if '-moon' in mission_file.stem:
             continue
         if mission_file.name == 'manifest.json':
             continue
 
         data = json.loads(mission_file.read_text(encoding='utf-8'))
-        mission_id = data.get('mission', {}).get('id') or mission_file.stem
-        moon_file = normalized_dir / f'{mission_id}-moon.json'
+        mission_id = mission_file.stem
+        base_mission_id = data.get('mission', {}).get('id') or mission_file.stem
+        moon_candidate = None
+        if mission_id in ('artemis-1', 'artemis-2'):
+            moon_candidate = f'{mission_id}-moon'
+        elif mission_id.startswith('artemis-3-'):
+            moon_candidate = mission_id.replace('artemis-3-', 'artemis-3-moon-', 1)
+        elif mission_id == 'artemis-3':
+            moon_candidate = 'artemis-3-moon'
+        moon_file = normalized_dir / f'{moon_candidate}.json' if moon_candidate else None
 
         missions.append(
             {
                 'missionId': mission_id,
+                'baseMissionId': base_mission_id,
                 'displayName': data.get('mission', {}).get('displayName', mission_id),
                 'status': data.get('mission', {}).get('status'),
                 'missionPath': f'./data/normalized/{mission_file.name}',
-                'moonPath': f'./data/normalized/{moon_file.name}' if moon_file.exists() else None,
+                'moonPath': f'./data/normalized/{moon_file.name}' if moon_file and moon_file.exists() else None,
                 'eventPath': f'./data/events/{mission_id}.json',
                 'sampleCount': data.get('derived', {}).get('sampleCount'),
                 'segmentCount': data.get('derived', {}).get('segmentCount'),
