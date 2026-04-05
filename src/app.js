@@ -74,6 +74,8 @@ const CONTROLS_HINT_STORAGE_KEY = 'artemis-controls-hint-dismissed';
 const DEFAULT_FOLLOW_MODE_BY_MISSION = {
   'artemis-2': 'cinematic',
 };
+const LUNAR_ORBIT_PERIOD_MS = Math.round(27.321661 * 24 * 60 * 60 * 1000);
+const ARTEMIS_II_FULL_MOON_ORBIT_POINTS = 540;
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -258,6 +260,124 @@ function formatCountdownToEvent(eventMs, nowMs) {
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
   return `${sign}${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+function _isFiniteVec3(vec) {
+  return Array.isArray(vec)
+    && vec.length === 3
+    && Number.isFinite(vec[0])
+    && Number.isFinite(vec[1])
+    && Number.isFinite(vec[2]);
+}
+
+function _vec3Length(vec) {
+  return Math.hypot(vec[0], vec[1], vec[2]);
+}
+
+function _vec3Dot(a, b) {
+  return (a[0] * b[0]) + (a[1] * b[1]) + (a[2] * b[2]);
+}
+
+function _vec3Cross(a, b) {
+  return [
+    (a[1] * b[2]) - (a[2] * b[1]),
+    (a[2] * b[0]) - (a[0] * b[2]),
+    (a[0] * b[1]) - (a[1] * b[0]),
+  ];
+}
+
+function _vec3Normalize(vec) {
+  const len = _vec3Length(vec);
+  if (!Number.isFinite(len) || len <= 1e-12) return null;
+  return [vec[0] / len, vec[1] / len, vec[2] / len];
+}
+
+function _vec3Scale(vec, scalar) {
+  return [vec[0] * scalar, vec[1] * scalar, vec[2] * scalar];
+}
+
+function _vec3Add(a, b) {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+function _vec3Sub(a, b) {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+function _projectOntoPlane(vec, normalUnit) {
+  return _vec3Sub(vec, _vec3Scale(normalUnit, _vec3Dot(vec, normalUnit)));
+}
+
+function buildFullMoonOrbitSegment(moonData) {
+  const moonSamples = flattenSamples(moonData).filter((sample) => _isFiniteVec3(sample?.positionKm));
+  if (moonSamples.length < 3) return null;
+
+  let angularMomentum = [0, 0, 0];
+  for (const sample of moonSamples) {
+    if (!_isFiniteVec3(sample.velocityKmS)) continue;
+    const h = _vec3Cross(sample.positionKm, sample.velocityKmS);
+    angularMomentum = _vec3Add(angularMomentum, h);
+  }
+  if (_vec3Length(angularMomentum) <= 1e-9) {
+    for (let i = 1; i < moonSamples.length; i++) {
+      const h = _vec3Cross(moonSamples[i - 1].positionKm, moonSamples[i].positionKm);
+      angularMomentum = _vec3Add(angularMomentum, h);
+    }
+  }
+
+  const orbitNormal = _vec3Normalize(angularMomentum);
+  if (!orbitNormal) return null;
+
+  const firstPos = moonSamples[0].positionKm;
+  const projectedFirstPos = _projectOntoPlane(firstPos, orbitNormal);
+  let basisU = _vec3Normalize(projectedFirstPos);
+  if (!basisU) {
+    const fallback = Math.abs(orbitNormal[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    basisU = _vec3Normalize(_vec3Cross(orbitNormal, fallback));
+  }
+  if (!basisU) return null;
+
+  let basisV = _vec3Normalize(_vec3Cross(orbitNormal, basisU));
+  if (!basisV) return null;
+  if (_isFiniteVec3(moonSamples[0].velocityKmS) && _vec3Dot(basisV, moonSamples[0].velocityKmS) < 0) {
+    basisV = _vec3Scale(basisV, -1);
+  }
+
+  let radiusSum = 0;
+  for (const sample of moonSamples) radiusSum += _vec3Length(sample.positionKm);
+  const averageRadiusKm = radiusSum / moonSamples.length;
+  if (!Number.isFinite(averageRadiusKm) || averageRadiusKm <= 0) return null;
+
+  const startEpochMs = Number.isFinite(moonSamples[0].epochMs) ? moonSamples[0].epochMs : 0;
+  const samples = [];
+  for (let i = 0; i <= ARTEMIS_II_FULL_MOON_ORBIT_POINTS; i++) {
+    const t = i / ARTEMIS_II_FULL_MOON_ORBIT_POINTS;
+    const theta = t * Math.PI * 2;
+    const pos = _vec3Add(
+      _vec3Scale(basisU, averageRadiusKm * Math.cos(theta)),
+      _vec3Scale(basisV, averageRadiusKm * Math.sin(theta)),
+    );
+    samples.push({
+      epochMs: Math.round(startEpochMs + (LUNAR_ORBIT_PERIOD_MS * t)),
+      positionKm: pos,
+    });
+  }
+
+  return {
+    id: 'artemis-2-full-lunar-orbit',
+    metadata: {
+      objectName: 'Moon (full orbit approximation)',
+      interpolation: 'derived-circular-orbit',
+    },
+    samples,
+  };
+}
+
+function getMoonTrajectorySegmentsForRender(missionId, moonData) {
+  const segments = moonData?.segments || [];
+  if (missionId !== 'artemis-2') return segments;
+  const fullOrbitSegment = buildFullMoonOrbitSegment(moonData);
+  return fullOrbitSegment ? [fullOrbitSegment] : segments;
 }
 
 function buildMissionPhases(events, missionStartMs, missionStopMs) {
@@ -654,7 +774,7 @@ async function selectMission(id) {
   setEventVoiceVolumeUi(state.ui.eventVoiceVolume, { sync: false });
 
   setMissionTrailsBySegment(state.missionData.segments || []);
-  setMoonTrajectoryBySegment(state.moonData?.segments || []);
+  setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
   try {
     buildEventMarkers();
   } catch (error) {
