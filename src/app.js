@@ -189,8 +189,8 @@ function getDomRefs() {
     btnCamMoon: pick('btn-cam-moon'),
     btnCamFit: pick('btn-cam-fit'),
     btnCamFollow: pick('btn-cam-follow'),
-    followModeSelect: pick('follow-mode-select'),
-    attitudeSelect: pick('attitude-select'),
+    followModeSelect: pickOptional('follow-mode-select'),
+    attitudeSelect: pickOptional('attitude-select'),
     btnZoomIn: pick('btn-zoom-in'),
     btnZoomOut: pick('btn-zoom-out'),
     btnZoomReset: pick('btn-zoom-reset'),
@@ -201,10 +201,12 @@ function getDomRefs() {
     btnCopyLink: pick('btn-copy-link'),
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
-    btnCapture: pick('btn-export-image'),
-    chkEventVoice: pick('chk-event-voice'),
-    voiceVolumeSlider: pick('voice-volume-slider'),
-    voiceVolumeValue: pick('voice-volume-value'),
+    btnCapture: pickOptional('btn-export-image'),
+    chkEventVoice: pickOptional('chk-event-voice'),
+    btnTtsToggle: pickOptional('btn-tts-toggle'),
+    voiceVolumeSlider: pickOptional('voice-volume-slider') || pickOptional('tts-volume'),
+    voiceVolumeValue: pickOptional('voice-volume-value'),
+    ttsStatus: pickOptional('tts-status'),
     annotationList: pick('mission-annotations'),
   };
 }
@@ -322,35 +324,46 @@ function wireUiEvents() {
     applyCameraPreset(nextPreset);
     setSidebarStatus(enablingFollow ? 'Camera preset: Follow Orion' : 'Follow camera disabled');
   });
-  refs.followModeSelect.addEventListener('change', () => {
-    const next = refs.followModeSelect.value === 'cinematic' ? 'cinematic' : 'standard';
-    setFollowCameraModeUi(next);
-    setSidebarStatus(`Follow camera: ${next}`);
-  });
-  refs.attitudeSelect.addEventListener('change', () => {
-    const candidate = refs.attitudeSelect.value;
-    const next = ['velocity', 'earth', 'moon'].includes(candidate) ? candidate : 'velocity';
-    setAttitudeReferenceUi(next);
-    setSidebarStatus(`Capsule attitude: ${next}`);
-  });
-  refs.btnCapture.addEventListener('click', () => {
-    exportScenePng();
-  });
-  refs.chkEventVoice.addEventListener('change', () => {
-    state.ui.eventVoiceEnabled = refs.chkEventVoice.checked;
-    if (!state.ui.eventVoiceEnabled) _stopTtsPlayback();
-    setSidebarStatus(state.ui.eventVoiceEnabled ? 'Event voice: On' : 'Event voice: Off');
-    syncUrlState();
-  });
-  refs.voiceVolumeSlider.addEventListener('input', () => {
-    const max = Number(refs.voiceVolumeSlider.max) || 100;
-    const raw = Number(refs.voiceVolumeSlider.value);
-    const volume = clamp(raw / max, 0, 1);
-    state.ui.eventVoiceVolume = volume;
-    refs.voiceVolumeValue.textContent = `${Math.round(volume * 100)}%`;
-    if (_currentTtsAudio) _currentTtsAudio.volume = volume;
-    syncUrlState();
-  });
+  if (refs.followModeSelect) {
+    refs.followModeSelect.addEventListener('change', () => {
+      const next = refs.followModeSelect.value === 'cinematic' ? 'cinematic' : 'standard';
+      setFollowCameraModeUi(next);
+      setSidebarStatus(`Follow camera: ${next}`);
+    });
+  }
+  if (refs.attitudeSelect) {
+    refs.attitudeSelect.addEventListener('change', () => {
+      const candidate = refs.attitudeSelect.value;
+      const next = ['velocity', 'earth', 'moon'].includes(candidate) ? candidate : 'velocity';
+      setAttitudeReferenceUi(next);
+      setSidebarStatus(`Capsule attitude: ${next}`);
+    });
+  }
+  if (refs.btnCapture) {
+    refs.btnCapture.addEventListener('click', () => {
+      exportScenePng();
+    });
+  }
+  if (refs.chkEventVoice) {
+    refs.chkEventVoice.addEventListener('change', () => {
+      setEventVoiceEnabledUi(refs.chkEventVoice.checked);
+      setSidebarStatus(state.ui.eventVoiceEnabled ? 'Event voice: On' : 'Event voice: Off');
+    });
+  }
+  if (refs.btnTtsToggle) {
+    refs.btnTtsToggle.addEventListener('click', () => {
+      setEventVoiceEnabledUi(!state.ui.eventVoiceEnabled);
+      setSidebarStatus(state.ui.eventVoiceEnabled ? 'Event voice: On' : 'Event voice: Off');
+    });
+  }
+  if (refs.voiceVolumeSlider) {
+    refs.voiceVolumeSlider.addEventListener('input', () => {
+      const max = Number(refs.voiceVolumeSlider.max) || 100;
+      const raw = Number(refs.voiceVolumeSlider.value);
+      const volume = clamp(raw / max, 0, 1);
+      setEventVoiceVolumeUi(volume);
+    });
+  }
   refs.btnZoomIn.addEventListener('click', () => {
     zoomCamera(1);
     syncZoomUiFromScene(true);
@@ -494,9 +507,8 @@ async function selectMission(id) {
 
   setFollowCameraModeUi(state.ui.followCameraMode, { sync: false });
   setAttitudeReferenceUi(state.ui.attitudeReference, { sync: false });
-  refs.chkEventVoice.checked = state.ui.eventVoiceEnabled;
-  refs.voiceVolumeSlider.value = String(Math.round(state.ui.eventVoiceVolume * 100));
-  refs.voiceVolumeValue.textContent = `${Math.round(state.ui.eventVoiceVolume * 100)}%`;
+  setEventVoiceEnabledUi(state.ui.eventVoiceEnabled, { sync: false });
+  setEventVoiceVolumeUi(state.ui.eventVoiceVolume, { sync: false });
 
   setMissionTrailsBySegment(state.missionData.segments || []);
   setMoonTrajectoryBySegment(state.moonData?.segments || []);
@@ -913,9 +925,10 @@ function parseInitialUiStateFromUrl() {
   setFollowCameraEnabled(state.ui.followCamera);
   setFollowCameraModeUi(followMode === 'cinematic' ? 'cinematic' : 'standard', { sync: false });
   setAttitudeReferenceUi(['velocity', 'earth', 'moon'].includes(attitude || '') ? attitude : 'velocity', { sync: false });
-  state.ui.eventVoiceEnabled = voice === '1';
+  setEventVoiceEnabledUi(voice === '1', { sync: false });
   const parsedVoiceVol = Number(voiceVol);
-  if (Number.isFinite(parsedVoiceVol)) state.ui.eventVoiceVolume = clamp(parsedVoiceVol, 0, 1);
+  if (Number.isFinite(parsedVoiceVol)) setEventVoiceVolumeUi(parsedVoiceVol, { sync: false });
+  else setEventVoiceVolumeUi(state.ui.eventVoiceVolume, { sync: false });
   const presetMatch = VISUAL_PRESET_OPTIONS.find((opt) => opt.value === vpreset)?.value || getVisualPreset();
   setVisualPreset(presetMatch);
   state.ui.visualPreset = getVisualPreset();
@@ -990,7 +1003,7 @@ function setAttitudeReferenceUi(value, { sync = true } = {}) {
   const allowed = ['velocity', 'earth', 'moon'];
   const next = allowed.includes(value) ? value : 'velocity';
   state.ui.attitudeReference = next;
-  refs.attitudeSelect.value = next;
+  if (refs.attitudeSelect) refs.attitudeSelect.value = next;
   setOrionAttitudeReference(next);
   if (sync) syncUrlState();
 }
@@ -998,8 +1011,35 @@ function setAttitudeReferenceUi(value, { sync = true } = {}) {
 function setFollowCameraModeUi(value, { sync = true } = {}) {
   const next = value === 'cinematic' ? 'cinematic' : 'standard';
   state.ui.followCameraMode = next;
-  refs.followModeSelect.value = next;
+  if (refs.followModeSelect) refs.followModeSelect.value = next;
   setFollowCameraMode(next);
+  if (sync) syncUrlState();
+}
+
+function setEventVoiceEnabledUi(enabled, { sync = true } = {}) {
+  state.ui.eventVoiceEnabled = Boolean(enabled);
+  if (refs.chkEventVoice) refs.chkEventVoice.checked = state.ui.eventVoiceEnabled;
+  if (refs.btnTtsToggle) {
+    refs.btnTtsToggle.classList.toggle('is-toggled', state.ui.eventVoiceEnabled);
+    refs.btnTtsToggle.textContent = `Event voice: ${state.ui.eventVoiceEnabled ? 'On' : 'Off'}`;
+  }
+  if (refs.ttsStatus) {
+    refs.ttsStatus.textContent = state.ui.eventVoiceEnabled ? 'Voice callouts ready' : 'Voice callouts muted';
+  }
+  if (!state.ui.eventVoiceEnabled) _stopTtsPlayback();
+  if (sync) syncUrlState();
+}
+
+function setEventVoiceVolumeUi(volume, { sync = true } = {}) {
+  const normalized = clamp(Number(volume), 0, 1);
+  state.ui.eventVoiceVolume = normalized;
+  if (refs.voiceVolumeSlider) {
+    refs.voiceVolumeSlider.value = String(Math.round(normalized * 100));
+  }
+  if (refs.voiceVolumeValue) {
+    refs.voiceVolumeValue.textContent = `${Math.round(normalized * 100)}%`;
+  }
+  if (_currentTtsAudio) _currentTtsAudio.volume = normalized;
   if (sync) syncUrlState();
 }
 
