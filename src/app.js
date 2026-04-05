@@ -71,6 +71,13 @@ const VISUAL_PRESET_OPTIONS = [
   { value: 'high-contrast', label: 'High contrast' },
 ];
 const CONTROLS_HINT_STORAGE_KEY = 'artemis-controls-hint-dismissed';
+const DEFAULT_FOLLOW_MODE_BY_MISSION = {
+  'artemis-2': 'cinematic',
+};
+
+function getDefaultFollowModeForMission(missionId) {
+  return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
+}
 
 const state = {
   activeMissionId: ACTIVE_MISSION_ID,
@@ -96,7 +103,7 @@ const state = {
   ui: {
     performanceMode: 'auto',
     followCamera: false,
-    followCameraMode: 'chase',
+    followCameraMode: getDefaultFollowModeForMission(ACTIVE_MISSION_ID),
     attitudeReference: 'velocity',
     eventVoiceEnabled: false,
     eventVoiceVolume: 0.75,
@@ -1088,7 +1095,8 @@ function parseInitialUiStateFromUrl() {
   state.ui.liveMode = live === '1';
   setLiveButtonUi();
   setFollowCameraEnabled(state.ui.followCamera);
-  setFollowCameraModeUi(followMode || 'chase', { sync: false });
+  const defaultFollowMode = getDefaultFollowModeForMission(state.activeMissionId);
+  setFollowCameraModeUi(followMode || defaultFollowMode, { sync: false });
   setAttitudeReferenceUi(['velocity', 'earth', 'moon'].includes(attitude || '') ? attitude : 'velocity', { sync: false });
   setEventVoiceEnabledUi(voice === '1', { sync: false });
   const parsedVoiceVol = Number(voiceVol);
