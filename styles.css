@@ -21,7 +21,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
 }
 body {
@@ -138,7 +138,7 @@ body {
   background: rgba(6, 10, 18, 0.72);
   color: #a9c2ef;
   font-family: 'Courier New', monospace;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   pointer-events: none;
   white-space: pre-wrap;
@@ -183,7 +183,7 @@ body {
 .legend-swatch.traversed-route { background: #bdeaff; }
 .legend-swatch.orion-now { background: #ffef78; }
 .legend-swatch.event-marker { background: #ff9fcb; }
-.hint-text { color: var(--text-dim); font-size: .72rem; margin-top: 5px; }
+.hint-text { color: var(--text-dim); font-size: .75rem; margin-top: 5px; }
 
 .controls-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .controls-row.toggle-row { align-items: center; justify-content: space-between; }
@@ -191,7 +191,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: .74rem;
+  font-size: .75rem;
   color: var(--text-dim);
 }
 .btn { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: #1a2338; color: var(--text); cursor: pointer; font-size: .77rem; }
@@ -215,10 +215,10 @@ body {
   outline-offset: 2px;
   box-shadow: 0 0 0 2px rgba(143, 197, 255, 0.2);
 }
-.btn-sm { padding: 4px 7px; font-size: .72rem; flex: 1; }
+.btn-sm { padding: 4px 7px; font-size: .75rem; flex: 1; }
 .speed-row { align-items: center; }
 .ctrl-label { font-size: .78rem; color: var(--text-dim); }
-.checkbox-label { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--text-dim); }
+.checkbox-label { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--text-dim); }
 .zoom-row { justify-content: space-between; }
 .zoom-value {
   font-size: .75rem;
@@ -249,15 +249,15 @@ body {
 
 .annotation-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
 .annotation-list li { border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; background: rgba(12, 18, 31, 0.66); }
-.annotation-time { font-family: 'Courier New', monospace; font-size: .71rem; color: #9fc3ff; margin-bottom: 2px; }
+.annotation-time { font-family: 'Courier New', monospace; font-size: .75rem; color: #9fc3ff; margin-bottom: 2px; }
 .annotation-label { font-size: .76rem; color: #dce8ff; }
-.annotation-note { margin-top: 2px; font-size: .7rem; color: var(--text-dim); }
-.annotation-link { margin-top: 2px; display: inline-block; color: #8dbdff; font-size: .7rem; text-decoration: none; }
+.annotation-note { margin-top: 2px; font-size: .75rem; color: var(--text-dim); }
+.annotation-link { margin-top: 2px; display: inline-block; color: #8dbdff; font-size: .75rem; text-decoration: none; }
 .annotation-link:hover { text-decoration: underline; }
 
 .capture-note {
   margin-top: 6px;
-  font-size: .71rem;
+  font-size: .75rem;
   color: #8fa7cc;
 }
 
