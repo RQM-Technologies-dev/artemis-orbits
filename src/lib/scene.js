@@ -19,6 +19,11 @@ const EARTH_CLOUD_LAYER_SCALE = 1.012;
 const ORION_MARKER_KM = 760;
 const ORION_HALO_KM = 520;
 const ORION_MODEL_SCALE = 0.78;
+const SUN_GLOW_CORE_SCALE = 3.4;
+const SUN_GLOW_MID_SCALE = 5.8;
+const SUN_GLOW_OUTER_SCALE = 8.2;
+const SUN_GLOW_FLARE_WIDTH_SCALE = 14.5;
+const SUN_GLOW_FLARE_HEIGHT_SCALE = 1.7;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
@@ -93,6 +98,12 @@ let _sceneVisualPreset = 'standard';
 let _visualPresetConfig = null;
 let _eventMarkerClickHandler = null;
 let _zoomChangeListener = null;
+let _sunGlowGroup = null;
+let _sunGlowTexture = null;
+let _sunGlowCoreMaterial = null;
+let _sunGlowMidMaterial = null;
+let _sunGlowOuterMaterial = null;
+let _sunGlowFlareMaterial = null;
 let _pointerDown = null;
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
@@ -197,10 +208,13 @@ export function createScene(canvas) {
 
   const sunDirection = new THREE.Vector3(50, 30, 80).normalize();
   const sunPosition = sunDirection.multiplyScalar(kmToScene(SUN_EARTH_DISTANCE_KM));
+  const sunRadiusScene = kmToScene(SUN_RADIUS_KM);
   _sunMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(kmToScene(SUN_RADIUS_KM), 32, 24),
+    new THREE.SphereGeometry(sunRadiusScene, 32, 24),
     new THREE.MeshBasicMaterial({ color: 0xfff1bd }),
   );
+  _sunGlowGroup = _makeSunGlow(sunRadiusScene);
+  if (_sunGlowGroup) _sunMesh.add(_sunGlowGroup);
   _sunMesh.position.copy(sunPosition);
   _scene.add(_sunMesh);
   _sunLight.position.copy(sunPosition);
@@ -532,6 +546,7 @@ export function setVisualPreset(preset) {
   if (_sunMesh?.material) {
     _sunMesh.material.color.setHex(settings.sunColor);
   }
+  _applySunGlowVisual(settings.sunColor);
   if (_starField?.material) {
     _starField.material.color.setHex(settings.starColor);
     _starField.material.opacity = settings.starOpacity;
@@ -728,6 +743,105 @@ function _makeStarField(count) {
       opacity: 0.95,
     }),
   );
+}
+
+function _makeSunGlow(radiusScene) {
+  _sunGlowTexture = _makeSunGlowTexture();
+  if (!_sunGlowTexture) return null;
+  const group = new THREE.Group();
+
+  _sunGlowCoreMaterial = new THREE.SpriteMaterial({
+    map: _sunGlowTexture,
+    color: 0xfff7df,
+    transparent: true,
+    opacity: 0.74,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const core = new THREE.Sprite(_sunGlowCoreMaterial);
+  core.scale.set(radiusScene * SUN_GLOW_CORE_SCALE, radiusScene * SUN_GLOW_CORE_SCALE, 1);
+  core.renderOrder = 4;
+  group.add(core);
+
+  _sunGlowMidMaterial = new THREE.SpriteMaterial({
+    map: _sunGlowTexture,
+    color: 0xffbe8f,
+    transparent: true,
+    opacity: 0.46,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const mid = new THREE.Sprite(_sunGlowMidMaterial);
+  mid.scale.set(radiusScene * SUN_GLOW_MID_SCALE, radiusScene * SUN_GLOW_MID_SCALE, 1);
+  mid.renderOrder = 3;
+  group.add(mid);
+
+  _sunGlowOuterMaterial = new THREE.SpriteMaterial({
+    map: _sunGlowTexture,
+    color: 0xff8a57,
+    transparent: true,
+    opacity: 0.24,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const outer = new THREE.Sprite(_sunGlowOuterMaterial);
+  outer.scale.set(radiusScene * SUN_GLOW_OUTER_SCALE, radiusScene * SUN_GLOW_OUTER_SCALE, 1);
+  outer.renderOrder = 2;
+  group.add(outer);
+
+  _sunGlowFlareMaterial = new THREE.SpriteMaterial({
+    map: _sunGlowTexture,
+    color: 0xff7a47,
+    transparent: true,
+    opacity: 0.22,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const flare = new THREE.Sprite(_sunGlowFlareMaterial);
+  flare.scale.set(radiusScene * SUN_GLOW_FLARE_WIDTH_SCALE, radiusScene * SUN_GLOW_FLARE_HEIGHT_SCALE, 1);
+  flare.renderOrder = 1;
+  group.add(flare);
+  return group;
+}
+
+function _makeSunGlowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const center = canvas.width * 0.5;
+  const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+  gradient.addColorStop(0.1, 'rgba(255, 245, 212, 0.98)');
+  gradient.addColorStop(0.24, 'rgba(255, 202, 141, 0.74)');
+  gradient.addColorStop(0.48, 'rgba(255, 141, 88, 0.36)');
+  gradient.addColorStop(1, 'rgba(255, 84, 35, 0)');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function _applySunGlowVisual(sunColorHex) {
+  const sunColor = new THREE.Color(sunColorHex || 0xfff1bd);
+  const warmCore = sunColor.clone().lerp(new THREE.Color(0xffffff), 0.35);
+  const warmMid = sunColor.clone().lerp(new THREE.Color(0xff985f), 0.35);
+  const warmOuter = sunColor.clone().lerp(new THREE.Color(0xff6b35), 0.58);
+  if (_sunGlowCoreMaterial) _sunGlowCoreMaterial.color.copy(warmCore);
+  if (_sunGlowMidMaterial) _sunGlowMidMaterial.color.copy(warmMid);
+  if (_sunGlowOuterMaterial) _sunGlowOuterMaterial.color.copy(warmOuter);
+  if (_sunGlowFlareMaterial) _sunGlowFlareMaterial.color.copy(warmOuter).lerp(new THREE.Color(0xffc08f), 0.2);
 }
 
 function _makeOrionCapsule(radius) {
