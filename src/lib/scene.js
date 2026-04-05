@@ -42,10 +42,16 @@ const ORION_LOD_HIGH_DISTANCE = 34;
 const ORION_LOD_BALANCED_DISTANCE = 24;
 const ORION_LOD_LOW_DISTANCE = 16;
 const EVENT_CALLOUT_LIFT_KM = 1_000;
+const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
+const EARTH_FRAME_CAMERA_OFFSET = new THREE.Vector3(0.95, 0.55, 1.05);
 const OUTBOUND_ROUTE_STYLE = { color: 0x8dcbff, opacity: 0.72 };
 const RETURN_ROUTE_STYLE = { color: 0xffbf98, opacity: 0.72 };
 const OUTBOUND_TRAVERSED_STYLE = { color: 0xdaf3ff, opacity: 1 };
 const RETURN_TRAVERSED_STYLE = { color: 0xffe4d1, opacity: 1 };
+const LIGHTING_UPDATE_INTERVAL_MS = 80;
+const AUTO_EXPOSURE_UPDATE_INTERVAL_MS = 50;
+const ORION_LOD_UPDATE_INTERVAL_MS = 120;
+const LOW_MODE_PIXEL_RATIO = 0.9;
 const BLOOM_DISABLED = { enabled: false, strength: 0, radius: 0, threshold: 1 };
 const BLOOM_STANDARD = { enabled: true, strength: 0.2, radius: 0.58, threshold: 0.82 };
 const BLOOM_BRIGHT = { enabled: true, strength: 0.24, radius: 0.6, threshold: 0.78 };
@@ -106,12 +112,20 @@ let _sunGlowMidMaterial = null;
 let _sunGlowOuterMaterial = null;
 let _sunGlowFlareMaterial = null;
 let _pointerDown = null;
+let _lastLightingUpdateNow = 0;
+let _lastAutoExposureUpdateNow = 0;
+let _lastOrionLodUpdateNow = 0;
 const _raycaster = new THREE.Raycaster();
 const _pointer = new THREE.Vector2();
 const _tmpForward = new THREE.Vector3();
 const _tmpSide = new THREE.Vector3();
 const _tmpUp = new THREE.Vector3();
 const _tmpMoonOffset = new THREE.Vector3();
+const _tmpVelocityDir = new THREE.Vector3();
+const _tmpTarget = new THREE.Vector3();
+const _tmpDesired = new THREE.Vector3();
+const _tmpDesiredTarget = new THREE.Vector3();
+const _tmpTowardMoon = new THREE.Vector3();
 const _tmpOrientation = new THREE.Quaternion();
 
 export function createScene(canvas) {
@@ -406,12 +420,25 @@ export function resizeScene(width, height) {
 
 export function renderScene() {
   if (!_renderer) return;
+  const now = performance.now();
+  const maintenanceScale = _performanceEffectiveMode === 'low'
+    ? 1.8
+    : (_performanceEffectiveMode === 'balanced' ? 1.25 : 1);
   _tickCameraTransition();
   _tickFollowCamera();
   _tickEarthCloudRotation();
-  _updateOrionLod();
-  _updateLightingForBodies();
-  _tickAutoExposure();
+  if ((now - _lastOrionLodUpdateNow) >= ORION_LOD_UPDATE_INTERVAL_MS * maintenanceScale) {
+    _updateOrionLod();
+    _lastOrionLodUpdateNow = now;
+  }
+  if ((now - _lastLightingUpdateNow) >= LIGHTING_UPDATE_INTERVAL_MS * maintenanceScale) {
+    _updateLightingForBodies();
+    _lastLightingUpdateNow = now;
+  }
+  if ((now - _lastAutoExposureUpdateNow) >= AUTO_EXPOSURE_UPDATE_INTERVAL_MS * maintenanceScale) {
+    _tickAutoExposure();
+    _lastAutoExposureUpdateNow = now;
+  }
   _updateEventCalloutPosition();
   _controls.update();
   if (_composer && _bloomPass?.enabled) _composer.render();
@@ -423,15 +450,22 @@ export function setPerformanceMode(mode) {
   const normalized = ['auto', 'high', 'balanced', 'low'].includes(mode) ? mode : 'auto';
   let effective = normalized;
   const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const isPhoneFriendly = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && Boolean(window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY).matches);
   if (normalized === 'auto') {
-    const cores = Number.isFinite(nav.hardwareConcurrency) ? nav.hardwareConcurrency : 8;
-    const deviceMemory = Number.isFinite(nav.deviceMemory) ? nav.deviceMemory : 8;
-    effective = (cores <= 4 || deviceMemory <= 4) ? 'low' : 'balanced';
+    if (isPhoneFriendly) {
+      effective = 'low';
+    } else {
+      const cores = Number.isFinite(nav.hardwareConcurrency) ? nav.hardwareConcurrency : 8;
+      const deviceMemory = Number.isFinite(nav.deviceMemory) ? nav.deviceMemory : 8;
+      effective = (cores <= 4 || deviceMemory <= 4) ? 'low' : 'balanced';
+    }
   }
   const dpr = window.devicePixelRatio || 1;
   if (effective === 'high') _renderer.setPixelRatio(Math.min(dpr, 2));
   else if (effective === 'balanced') _renderer.setPixelRatio(Math.min(dpr, 1.5));
-  else _renderer.setPixelRatio(1);
+  else _renderer.setPixelRatio(Math.min(dpr, LOW_MODE_PIXEL_RATIO));
   if (_starField) _starField.visible = effective !== 'low';
   if (_bloomPass) {
     const bloomAllowed = effective !== 'low' && _visualPresetConfig?.bloom?.enabled !== false;
@@ -441,6 +475,10 @@ export function setPerformanceMode(mode) {
   _updateOrionLod();
   _renderer.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT, false);
   _composer?.setSize(_renderer.domElement.clientWidth || FALLBACK_CANVAS_WIDTH, _renderer.domElement.clientHeight || FALLBACK_CANVAS_HEIGHT);
+}
+
+export function getEffectivePerformanceMode() {
+  return _performanceEffectiveMode;
 }
 
 export function setFollowCameraEnabled(enabled) {
@@ -1168,11 +1206,11 @@ function _tickCameraTransition() {
 
 function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
-  const target = _orionMarker.position.clone();
+  _tmpTarget.copy(_orionMarker.position);
   _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
-  const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
-    ? _orionVelocityScene.clone().normalize()
-    : new THREE.Vector3(1, 0, 0);
+  const velocityDir = _tmpVelocityDir;
+  if (_orionVelocityScene.lengthSq() > 1e-12) velocityDir.copy(_orionVelocityScene).normalize();
+  else velocityDir.set(1, 0, 0);
   const isCinematic = _followCameraMode === 'cinematic';
   const isSide = _followCameraMode === 'side';
   const isEarthFrame = _followCameraMode === 'earth-frame';
@@ -1180,24 +1218,29 @@ function _tickFollowCamera() {
   const forwardLead = isCinematic ? 0.52 : (isSide ? 0.2 : 0.38);
   const upLift = isCinematic ? 0.74 : (isSide ? 0.48 : 0.55);
   const trailingDistance = isCinematic ? 1.7 : (isSide ? 1.15 : 1.35);
-  const sideAxis = new THREE.Vector3().crossVectors(velocityDir, ORION_WORLD_UP).normalize();
-  const trailing = velocityDir.clone().multiplyScalar(-trailingDistance * _followCameraDistanceScale);
-  const lead = velocityDir.clone().multiplyScalar(forwardLead * _followCameraDistanceScale);
-  const up = new THREE.Vector3(0, 1, 0).multiplyScalar(upLift * _followCameraDistanceScale);
-  let desired = target.clone().add(trailing).add(up);
-  if (isSide && sideAxis.lengthSq() > 1e-8) {
-    desired.add(sideAxis.multiplyScalar(1.35 * _followCameraDistanceScale));
+  _tmpSide.crossVectors(velocityDir, ORION_WORLD_UP).normalize();
+  _tmpDesired
+    .copy(_tmpTarget)
+    .addScaledVector(velocityDir, -trailingDistance * _followCameraDistanceScale)
+    .addScaledVector(ORION_WORLD_UP, upLift * _followCameraDistanceScale);
+  if (isSide && _tmpSide.lengthSq() > 1e-8) {
+    _tmpDesired.addScaledVector(_tmpSide, 1.35 * _followCameraDistanceScale);
   } else if (isEarthFrame) {
-    desired = target.clone().add(new THREE.Vector3(0.95, 0.55, 1.05).multiplyScalar(_followCameraDistanceScale));
+    _tmpDesired.copy(_tmpTarget).addScaledVector(EARTH_FRAME_CAMERA_OFFSET, _followCameraDistanceScale);
   } else if (isMoonFrame && _moonMesh) {
-    const towardMoon = _moonMesh.position.clone().sub(target).normalize();
-    desired = target.clone().add(towardMoon.multiplyScalar(-1.45 * _followCameraDistanceScale)).add(up);
+    _tmpTowardMoon.copy(_moonMesh.position).sub(_tmpTarget);
+    if (_tmpTowardMoon.lengthSq() > 1e-8) _tmpTowardMoon.normalize();
+    else _tmpTowardMoon.set(1, 0, 0);
+    _tmpDesired
+      .copy(_tmpTarget)
+      .addScaledVector(_tmpTowardMoon, -1.45 * _followCameraDistanceScale)
+      .addScaledVector(ORION_WORLD_UP, upLift * _followCameraDistanceScale);
   }
-  const desiredTarget = target.clone().add(lead);
+  _tmpDesiredTarget.copy(_tmpTarget).addScaledVector(velocityDir, forwardLead * _followCameraDistanceScale);
   const camLerp = isCinematic ? 0.05 : 0.075;
   const tgtLerp = isCinematic ? 0.09 : 0.12;
-  _camera.position.lerp(desired, camLerp);
-  _controls.target.lerp(desiredTarget, tgtLerp);
+  _camera.position.lerp(_tmpDesired, camLerp);
+  _controls.target.lerp(_tmpDesiredTarget, tgtLerp);
 }
 
 function _tryLoadOrionModel() {
