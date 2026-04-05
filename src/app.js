@@ -104,6 +104,7 @@ const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
   'artemis-2': '2026-04-02T01:57:37Z',
 });
 const HUD_REFRESH_INTERVAL_MS = 200;
+const UI_REFRESH_INTERVAL_MS = 66;
 const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
@@ -165,6 +166,7 @@ let _spokenEvents = new Map();
 let _currentTtsAudio = null;
 let _pendingDefaultLandingUtc = null;
 let _lastHudRefreshAt = 0;
+let _lastUiRefreshAt = 0;
 let _phoneFriendlyMql = null;
 let _phoneFriendlyAutoplayKey = '';
 
@@ -569,6 +571,7 @@ function refreshTelemetryOverlay(values) {
 
 function clearPerformanceCaches() {
   _lastHudRefreshAt = 0;
+  _lastUiRefreshAt = 0;
 }
 
 function buildSpeedOptions() {
@@ -1699,11 +1702,10 @@ function startRafLoop() {
 
     try {
       renderScene();
-      if (!state.scrubbing) syncZoomUiFromScene(false);
+      syncZoomUiFromScene(false);
     } catch (error) {
       handleStartupError('Render loop failure', error);
     }
-    syncZoomUiFromScene();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -1715,13 +1717,20 @@ function updateScene() {
     return;
   }
 
-  if (!state.scrubbing && state.missionStopMs > state.missionStartMs) {
+  const nowPerf = performance.now();
+  const shouldRefreshUi = !state.playing
+    || state.scrubbing
+    || (nowPerf - _lastUiRefreshAt) >= UI_REFRESH_INTERVAL_MS;
+
+  if (shouldRefreshUi && !state.scrubbing && state.missionStopMs > state.missionStartMs) {
     const f = (state.currentMs - state.missionStartMs) / (state.missionStopMs - state.missionStartMs);
     refs.timelineSlider.value = String(Math.round(f * Number(refs.timelineSlider.max)));
   }
 
-  refs.sbUtc.textContent = formatUtc(state.currentMs);
-  refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+  if (shouldRefreshUi) {
+    refs.sbUtc.textContent = formatUtc(state.currentMs);
+    refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+  }
 
   const missionBounds = state.missionData?.__cachedSortedSegmentBounds || null;
   const moonBounds = state.moonData?.__cachedSortedSegmentBounds || null;
@@ -1743,18 +1752,19 @@ function updateScene() {
   });
   setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
 
-  const idx = findSampleIndex(state.flatSamples, state.currentMs);
-  refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
-
   const eventCtx = getEventContext(state.events, state.currentMs);
-  if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
-  else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
-  else refs.sbEvent.textContent = 'No events loaded';
-  const nowPerf = performance.now();
-  const shouldRefreshHud = (nowPerf - _lastHudRefreshAt) >= HUD_REFRESH_INTERVAL_MS || !state.playing;
-  if (shouldRefreshHud) {
-    refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
-    _lastHudRefreshAt = nowPerf;
+  if (shouldRefreshUi) {
+    const idx = findSampleIndex(state.flatSamples, state.currentMs);
+    refs.sbFrame.textContent = `${idx + 1} / ${state.flatSamples.length} (${segState.state})`;
+    if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
+    else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
+    else refs.sbEvent.textContent = 'No events loaded';
+    const shouldRefreshHud = (nowPerf - _lastHudRefreshAt) >= HUD_REFRESH_INTERVAL_MS || !state.playing;
+    if (shouldRefreshHud) {
+      refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+      _lastHudRefreshAt = nowPerf;
+    }
+    _lastUiRefreshAt = nowPerf;
   }
 
   const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
@@ -1809,6 +1819,7 @@ function refreshTimelineEventTicks() {
 }
 
 function resetLoadedMissionState() {
+  clearPerformanceCaches();
   state.missionData = null;
   state.moonData = null;
   state.events = [];
