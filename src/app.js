@@ -109,6 +109,7 @@ const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
   'artemis-2': '2026-04-02T01:57:37Z',
 });
 const HUD_REFRESH_INTERVAL_MS = 200;
+const UI_REFRESH_INTERVAL_MS = 66;
 const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
@@ -174,6 +175,7 @@ let _lastUrlSyncNow = 0;
 let _lastZoomUiUpdateNow = 0;
 let _pendingDefaultLandingUtc = null;
 let _lastHudRefreshAt = 0;
+let _lastUiRefreshAt = 0;
 let _phoneFriendlyMql = null;
 let _phoneFriendlyAutoplayKey = '';
 
@@ -578,6 +580,7 @@ function refreshTelemetryOverlay(values) {
 
 function clearPerformanceCaches() {
   _lastHudRefreshAt = 0;
+  _lastUiRefreshAt = 0;
 }
 
 function buildSpeedOptions() {
@@ -1738,14 +1741,20 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     || state.scrubbing
     || (now - _lastUrlSyncNow >= URL_SYNC_INTERVAL_MS);
 
-  if (!state.scrubbing && state.missionStopMs > state.missionStartMs) {
+  const nowPerf = performance.now();
+  const shouldRefreshUi = !state.playing
+    || state.scrubbing
+    || (nowPerf - _lastUiRefreshAt) >= UI_REFRESH_INTERVAL_MS;
+
+  if (shouldRefreshUi && !state.scrubbing && state.missionStopMs > state.missionStartMs) {
     const f = (state.currentMs - state.missionStartMs) / (state.missionStopMs - state.missionStartMs);
     refs.timelineSlider.value = String(Math.round(f * Number(refs.timelineSlider.max)));
   }
 
-  if (shouldRunHeavyUi) {
+  if (shouldRefreshUi) {
     refs.sbUtc.textContent = formatUtc(state.currentMs);
     refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
+    _lastUiRefreshAt = nowPerf;
   }
 
   const missionBounds = state.missionData?.__cachedSortedSegmentBounds || null;
@@ -1842,6 +1851,7 @@ function refreshTimelineEventTicks() {
 }
 
 function resetLoadedMissionState() {
+  clearPerformanceCaches();
   state.missionData = null;
   state.moonData = null;
   state.events = [];

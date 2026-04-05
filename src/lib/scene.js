@@ -62,6 +62,7 @@ const PLANET_TEXTURE_URLS = {
 let _scene, _camera, _renderer, _controls;
 let _earthMesh, _earthCloudMesh, _moonMesh, _orionMarker, _orionHalo, _earthAtmosphere, _sunMesh;
 let _fullTrailGroup, _traversedTrailGroup, _eventMarkerGroup, _moonTrajectoryGroup;
+let _traversedTrailCache = null;
 let _starField;
 let _ambientLight = null;
 let _sunLight = null;
@@ -273,6 +274,7 @@ export function updateBodies(orionKm, moonKm, options = {}) {
 export function setMissionTrailsBySegment(segments) {
   clearGroup(_fullTrailGroup);
   _trajectorySplitMs = _computeTrajectorySplitMs(segments);
+  _rebuildTraversedTrailCache(segments);
   for (const seg of segments || []) {
     const phase = _getTrajectoryPhaseForSegment(seg);
     const style = phase === 'return' ? RETURN_ROUTE_STYLE : OUTBOUND_ROUTE_STYLE;
@@ -282,14 +284,22 @@ export function setMissionTrailsBySegment(segments) {
 }
 
 export function setTraversedTrailBySegment(segments, currentMs) {
-  clearGroup(_traversedTrailGroup);
-  for (const seg of segments || []) {
-    const traversed = getTraversedSamples(seg.samples || [], currentMs);
-    if (traversed.length < 2) continue;
-    const phase = _getTrajectoryPhaseForSegment(seg);
-    const style = phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE;
-    const line = makeLineFromSamples(traversed, { color: style.color, opacity: style.opacity, linewidth: 3.6 });
-    if (line) _traversedTrailGroup.add(line);
+  if (!_traversedTrailCache || _traversedTrailCache.sourceSegments !== segments) {
+    _rebuildTraversedTrailCache(segments);
+  }
+  const entries = _traversedTrailCache?.entries || [];
+  for (const entry of entries) {
+    const traversedCount = _getTraversedCount(entry.sampleEpochMs, currentMs);
+    if (traversedCount < 2) {
+      entry.line.visible = false;
+      entry.lastDrawCount = 0;
+      continue;
+    }
+    entry.line.visible = true;
+    if (entry.lastDrawCount !== traversedCount) {
+      entry.line.geometry.setDrawRange(0, traversedCount);
+      entry.lastDrawCount = traversedCount;
+    }
   }
 }
 
@@ -324,6 +334,7 @@ export function resetSceneDynamicState() {
   showFallbackBodies();
   clearGroup(_fullTrailGroup);
   clearGroup(_traversedTrailGroup);
+  _traversedTrailCache = null;
   clearGroup(_eventMarkerGroup);
   clearGroup(_moonTrajectoryGroup);
   _trajectorySplitMs = null;
@@ -697,20 +708,44 @@ function _getTrajectoryPhaseForSegment(segment) {
   return midMs > _trajectorySplitMs ? 'return' : 'outbound';
 }
 
-function getTraversedSamples(samples, currentMs) {
-  if (!samples.length) return [];
-  const startMs = samples[0].epochMs;
-  const stopMs = samples[samples.length - 1].epochMs;
-
-  if (currentMs < startMs) return [];
-  if (currentMs >= stopMs) return samples;
-
-  const traversed = [];
-  for (let i = 0; i < samples.length; i++) {
-    if (samples[i].epochMs <= currentMs) traversed.push(samples[i]);
-    else break;
+function _rebuildTraversedTrailCache(segments) {
+  clearGroup(_traversedTrailGroup);
+  const entries = [];
+  for (const seg of segments || []) {
+    const samples = seg?.samples || [];
+    if (samples.length < 2) continue;
+    const phase = _getTrajectoryPhaseForSegment(seg);
+    const style = phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE;
+    const line = makeLineFromSamples(samples, { color: style.color, opacity: style.opacity, linewidth: 3.6 });
+    if (!line) continue;
+    line.visible = false;
+    line.geometry.setDrawRange(0, 0);
+    _traversedTrailGroup.add(line);
+    entries.push({
+      line,
+      sampleEpochMs: samples.map((sample) => sample.epochMs),
+      lastDrawCount: 0,
+    });
   }
-  return traversed;
+  _traversedTrailCache = {
+    sourceSegments: segments || null,
+    entries,
+  };
+}
+
+function _getTraversedCount(sampleEpochMs, currentMs) {
+  if (!sampleEpochMs.length) return 0;
+  const lastIdx = sampleEpochMs.length - 1;
+  if (currentMs < sampleEpochMs[0]) return 0;
+  if (currentMs >= sampleEpochMs[lastIdx]) return sampleEpochMs.length;
+  let low = 0;
+  let high = sampleEpochMs.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (sampleEpochMs[mid] <= currentMs) low = mid + 1;
+    else high = mid;
+  }
+  return low;
 }
 
 function clearGroup(group) {
