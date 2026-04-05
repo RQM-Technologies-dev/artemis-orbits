@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">NASA Artemis Orbits preview image</title>
+  <desc id="desc">A stylized Earth-Moon trajectory scene for the NASA Artemis Orbits interactive viewer.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#040913"/>
+      <stop offset="100%" stop-color="#0b1f3f"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8d8" stop-opacity="1"/>
+      <stop offset="32%" stop-color="#ffca96" stop-opacity="0.94"/>
+      <stop offset="100%" stop-color="#ff7e43" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="#d6e8ff" opacity="0.75">
+    <circle cx="96" cy="82" r="2"/>
+    <circle cx="184" cy="140" r="1.8"/>
+    <circle cx="262" cy="74" r="1.5"/>
+    <circle cx="312" cy="208" r="1.6"/>
+    <circle cx="418" cy="98" r="1.7"/>
+    <circle cx="512" cy="58" r="1.5"/>
+    <circle cx="632" cy="112" r="1.8"/>
+    <circle cx="714" cy="88" r="1.4"/>
+    <circle cx="828" cy="142" r="1.7"/>
+    <circle cx="944" cy="96" r="1.6"/>
+    <circle cx="1038" cy="168" r="1.8"/>
+    <circle cx="1124" cy="114" r="1.5"/>
+    <circle cx="106" cy="264" r="1.4"/>
+    <circle cx="228" cy="302" r="1.6"/>
+    <circle cx="344" cy="336" r="1.5"/>
+    <circle cx="466" cy="294" r="1.8"/>
+    <circle cx="586" cy="328" r="1.6"/>
+    <circle cx="706" cy="290" r="1.6"/>
+    <circle cx="814" cy="342" r="1.7"/>
+    <circle cx="936" cy="300" r="1.5"/>
+    <circle cx="1042" cy="334" r="1.5"/>
+  </g>
+  <circle cx="860" cy="186" r="220" fill="url(#sun)"/>
+  <circle cx="860" cy="186" r="44" fill="#fff3c5"/>
+  <circle cx="210" cy="490" r="94" fill="#2f5d9f"/>
+  <path d="M160 490a52 52 0 0 0 100 22a62 62 0 0 1-100-22Z" fill="#79a8ea" opacity="0.85"/>
+  <ellipse cx="510" cy="402" rx="310" ry="110" fill="none" stroke="#8dc8ff" stroke-width="4" opacity="0.74"/>
+  <ellipse cx="510" cy="402" rx="204" ry="72" fill="none" stroke="#c2e4ff" stroke-width="3" opacity="0.58"/>
+  <circle cx="720" cy="434" r="11" fill="#ffe28c"/>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#edf5ff">
+    <text x="84" y="100" font-size="58" font-weight="700">NASA Artemis Orbits</text>
+    <text x="84" y="146" font-size="28" opacity="0.9">Interactive 3D mission timeline and trajectory viewer</text>
+  </g>
+</svg>
