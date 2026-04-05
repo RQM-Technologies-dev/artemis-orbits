@@ -104,6 +104,7 @@ const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
   'artemis-2': '2026-04-02T01:57:37Z',
 });
 const HUD_REFRESH_INTERVAL_MS = 200;
+const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -164,12 +165,15 @@ let _spokenEvents = new Map();
 let _currentTtsAudio = null;
 let _pendingDefaultLandingUtc = null;
 let _lastHudRefreshAt = 0;
+let _phoneFriendlyMql = null;
+let _phoneFriendlyAutoplayKey = '';
 
 bootstrapApp();
 
 function bootstrapApp() {
   try {
     refs = getDomRefs();
+    initPhoneFriendlyMode();
     try {
       createScene(refs.canvas);
       setZoomChangeListener(() => syncZoomUiFromScene(true));
@@ -203,6 +207,39 @@ function bootstrapApp() {
   } catch (error) {
     handleStartupError('Bootstrap failed', error);
   }
+}
+
+function initPhoneFriendlyMode() {
+  if (typeof window.matchMedia !== 'function') return;
+  _phoneFriendlyMql = window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY);
+  const applyPhoneFriendlyClass = () => {
+    const enabled = Boolean(_phoneFriendlyMql?.matches);
+    document.body.classList.toggle('phone-friendly-mode', enabled);
+    if (enabled) maybeStartPhoneFriendlyPlayback();
+  };
+  applyPhoneFriendlyClass();
+  const onChange = () => applyPhoneFriendlyClass();
+  if (typeof _phoneFriendlyMql.addEventListener === 'function') {
+    _phoneFriendlyMql.addEventListener('change', onChange);
+  } else if (typeof _phoneFriendlyMql.addListener === 'function') {
+    _phoneFriendlyMql.addListener(onChange);
+  }
+}
+
+function isPhoneFriendlyMode() {
+  return Boolean(_phoneFriendlyMql?.matches);
+}
+
+function maybeStartPhoneFriendlyPlayback() {
+  if (!isPhoneFriendlyMode()) return;
+  if (!hasMissionTimeline() || state.playing || state.ui.liveMode) return;
+  const autoplayKey = `${state.activeMissionId}:${state.ui.artemis3Mode}:${state.ui.artemis5Mode}`;
+  if (_phoneFriendlyAutoplayKey === autoplayKey) return;
+  state.playing = true;
+  refs.btnPlay.textContent = '⏸ Pause';
+  setSceneStartMissionButtonVisible(false);
+  _phoneFriendlyAutoplayKey = autoplayKey;
+  updateScene();
 }
 
 function getDomRefs() {
@@ -1628,6 +1665,7 @@ async function selectMission(id) {
       ? `Mission scene active — Artemis V (${artemis5Profile?.displayName || 'Current mission'})`
       : `Mission scene active — ${mission.displayName}`;
   setSidebarStatus(missionLabel);
+  maybeStartPhoneFriendlyPlayback();
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
   if (!loadedEvents) setErrorMessage('Event JSON missing; continuing without event markers.');
