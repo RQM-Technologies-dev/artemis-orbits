@@ -17,20 +17,44 @@
   <header id="app-header">
     <h1>NASA Artemis Orbits</h1>
     <p class="subtitle">Official OEM normalization + 3D browser playback shell</p>
+    <div class="rqm-header-link-wrap">
+      <a
+        class="rqm-header-link"
+        href="https://www.rqmtechnologies.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="RQM Technologies website"
+      >
+        RQM Technologies
+      </a>
+    </div>
   </header>
 
-  <nav id="mission-tabs" role="tablist" aria-label="Mission selector"></nav>
-
-  <section id="mission-banner" class="card" aria-live="polite">
-    <h2 id="sb-mission-title">—</h2>
-    <p id="sb-mission-summary" class="muted">—</p>
-    <p id="sb-status-msg" class="status-msg">—</p>
-  </section>
+  <nav id="mission-nav" aria-label="Mission navigation">
+    <section id="mission-strip" aria-live="polite">
+      <h2 id="sb-mission-title">—</h2>
+      <p id="sb-mission-summary" class="muted">—</p>
+      <p id="sb-status-msg" class="status-msg">—</p>
+    </section>
+    <div id="mission-tabs" role="tablist" aria-label="Mission selector"></div>
+  </nav>
 
   <main id="app-main">
     <section id="scene-panel" aria-label="3D orbit viewer">
       <canvas id="three-canvas"></canvas>
       <div id="scene-overlay-msg" class="scene-overlay hidden"></div>
+      <div id="scene-telemetry" aria-live="polite">
+        <div class="scene-phase" id="sb-phase">Phase: —</div>
+        <div class="scene-telem-row"><span class="scene-telem-label">UTC</span><span class="scene-telem-value" id="sb-utc">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">MET</span><span class="scene-telem-value" id="sb-met">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Sample / Mode</span><span class="scene-telem-value" id="sb-frame">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Samples</span><span class="scene-telem-value" id="sb-sample-count">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Speed</span><span class="scene-telem-value" id="sb-speed">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Earth distance</span><span class="scene-telem-value" id="sb-earth-dist">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Moon distance</span><span class="scene-telem-value" id="sb-moon-dist">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Next event</span><span class="scene-telem-value" id="sb-next-event">—</span></div>
+        <div class="scene-telem-row"><span class="scene-telem-label">Event</span><span class="scene-telem-value" id="sb-current-event">No events loaded</span></div>
+      </div>
       <div id="controls-hint" class="controls-hint hidden" role="dialog" aria-live="polite" aria-label="Viewer controls help">
         <p class="controls-hint-text">Drag to orbit, wheel or pinch to zoom, and use <strong>+</strong>/<strong>-</strong> keys for quick zoom.</p>
         <button id="btn-dismiss-hint" class="btn btn-sm controls-hint-dismiss" type="button" aria-label="Dismiss controls hint">Got it</button>
@@ -38,14 +62,6 @@
     </section>
 
     <aside id="sidebar">
-      <div class="card" id="telemetry">
-        <div class="telem-row"><span class="telem-label">UTC</span><span class="telem-value" id="sb-utc">—</span></div>
-        <div class="telem-row"><span class="telem-label">MET</span><span class="telem-value" id="sb-met">—</span></div>
-        <div class="telem-row"><span class="telem-label">Sample / Mode</span><span class="telem-value" id="sb-frame">—</span></div>
-        <div class="telem-row"><span class="telem-label">Samples</span><span class="telem-value" id="sb-sample-count">—</span></div>
-        <div class="telem-row"><span class="telem-label">Event</span><span class="telem-value" id="sb-current-event">No events loaded</span></div>
-      </div>
-
       <div class="card" id="playback-card">
         <div class="controls-row">
           <button id="btn-play" class="btn btn-primary">▶ Play</button>
@@ -64,6 +80,9 @@
           <button id="btn-plus-1h" class="btn btn-sm">+1 h</button>
           <button id="btn-minus-1d" class="btn btn-sm">−1 d</button>
           <button id="btn-plus-1d" class="btn btn-sm">+1 d</button>
+        </div>
+        <div class="controls-row">
+          <button id="btn-live" class="btn btn-sm">Live: Off</button>
         </div>
 
         <div class="controls-row speed-row">
@@ -102,9 +121,16 @@
         <div class="controls-row speed-row">
           <label for="follow-mode-select" class="ctrl-label">Follow mode</label>
           <select id="follow-mode-select" class="select" aria-label="Follow camera mode">
-            <option value="standard">Standard</option>
-            <option value="cinematic">Cinematic</option>
+            <option value="chase">Chase</option>
+            <option value="cinematic">Chase (cinematic)</option>
+            <option value="side">Side profile</option>
+            <option value="earth-frame">Earth-frame lock</option>
+            <option value="moon-frame">Moon-frame lock</option>
           </select>
+        </div>
+        <div class="controls-row">
+          <button id="btn-cam-recenter" class="btn btn-sm">Recenter Orion</button>
+          <button id="btn-cam-snap-event" class="btn btn-sm">Snap event view</button>
         </div>
         <div class="controls-row speed-row">
           <label for="attitude-select" class="ctrl-label">Attitude</label>

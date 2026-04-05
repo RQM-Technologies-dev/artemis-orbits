@@ -7,39 +7,40 @@ import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/exampl
 import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
 
 import { kmToScene } from './units.js';
 
 const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
-const ORION_MARKER_KM = 260;
-const ORION_HALO_KM = 430;
+const ORION_MARKER_KM = 420;
+const ORION_HALO_KM = 520;
 const DEFAULT_MOON_POSITION_KM = [384_400, 0, 0];
 const DEFAULT_ORION_POSITION_KM = [22_000, 6_000, 10_000];
 const FALLBACK_CANVAS_WIDTH = 960;
 const FALLBACK_CANVAS_HEIGHT = 540;
 const CAMERA_TRANSITION_MS = 700;
 const ZOOM_FACTOR_PER_STEP = 1.2;
-const DEFAULT_TONE_EXPOSURE = 1.18;
-const AUTO_EXPOSURE_MIN = 1.04;
-const AUTO_EXPOSURE_MAX = 1.45;
+const DEFAULT_TONE_EXPOSURE = 1.24;
+const AUTO_EXPOSURE_MIN = 1.1;
+const AUTO_EXPOSURE_MAX = 1.6;
 const AUTO_EXPOSURE_SMOOTHING = 0.08;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
 const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
-const ORION_LOD_HIGH_DISTANCE = 18;
-const ORION_LOD_BALANCED_DISTANCE = 12;
-const ORION_LOD_LOW_DISTANCE = 8;
+const ORION_LOD_HIGH_DISTANCE = 34;
+const ORION_LOD_BALANCED_DISTANCE = 24;
+const ORION_LOD_LOW_DISTANCE = 16;
 const EVENT_CALLOUT_LIFT_KM = 1_000;
-const OUTBOUND_ROUTE_STYLE = { color: 0x79bcff, opacity: 0.44 };
-const RETURN_ROUTE_STYLE = { color: 0xffb38a, opacity: 0.44 };
-const OUTBOUND_TRAVERSED_STYLE = { color: 0xbdeaff, opacity: 1 };
-const RETURN_TRAVERSED_STYLE = { color: 0xffd4bf, opacity: 1 };
+const OUTBOUND_ROUTE_STYLE = { color: 0x8dcbff, opacity: 0.72 };
+const RETURN_ROUTE_STYLE = { color: 0xffbf98, opacity: 0.72 };
+const OUTBOUND_TRAVERSED_STYLE = { color: 0xdaf3ff, opacity: 1 };
+const RETURN_TRAVERSED_STYLE = { color: 0xffe4d1, opacity: 1 };
 const BLOOM_DISABLED = { enabled: false, strength: 0, radius: 0, threshold: 1 };
-const BLOOM_STANDARD = { enabled: true, strength: 0.13, radius: 0.55, threshold: 0.88 };
-const BLOOM_BRIGHT = { enabled: true, strength: 0.17, radius: 0.57, threshold: 0.84 };
-const BLOOM_CONTRAST = { enabled: true, strength: 0.12, radius: 0.5, threshold: 0.9 };
+const BLOOM_STANDARD = { enabled: true, strength: 0.2, radius: 0.58, threshold: 0.82 };
+const BLOOM_BRIGHT = { enabled: true, strength: 0.24, radius: 0.6, threshold: 0.78 };
+const BLOOM_CONTRAST = { enabled: true, strength: 0.18, radius: 0.54, threshold: 0.84 };
 
 const PLANET_TEXTURE_URLS = {
   earthColor: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r165/examples/textures/planets/earth_atmos_2048.jpg',
@@ -68,10 +69,11 @@ let _orionPlumeMaterial = null;
 let _orionDetailGroup = null;
 let _orionSimpleMesh = null;
 let _orionPlumeMesh = null;
+let _orionModelRoot = null;
 let _orionAttitudeReference = 'velocity';
 let _orionVelocityScene = new THREE.Vector3(1, 0, 0);
 let _orionManeuverLevel = 0;
-let _followCameraMode = 'standard';
+let _followCameraMode = 'chase';
 let _performanceEffectiveMode = 'balanced';
 let _trajectorySplitMs = null;
 let _eventCalloutSprite = null;
@@ -113,12 +115,12 @@ export function createScene(canvas) {
   _camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 1200);
   _camera.position.set(0, 0, 8);
 
-  _ambientLight = new THREE.AmbientLight(0x7e9cd1, 1.35);
+  _ambientLight = new THREE.AmbientLight(0x88a9e0, 1.62);
   _scene.add(_ambientLight);
-  _sunLight = new THREE.DirectionalLight(0xffffff, 2.85);
+  _sunLight = new THREE.DirectionalLight(0xffffff, 3.25);
   _sunLight.position.set(50, 30, 80);
   _scene.add(_sunLight);
-  _rimLight = new THREE.DirectionalLight(0x6f93d9, 0.78);
+  _rimLight = new THREE.DirectionalLight(0x82a9f4, 1.02);
   _rimLight.position.set(-30, -10, -50);
   _scene.add(_rimLight);
 
@@ -137,7 +139,7 @@ export function createScene(canvas) {
   const atmosphereMat = new THREE.MeshLambertMaterial({
     color: 0x9fd3ff,
     transparent: true,
-    opacity: 0.28,
+    opacity: 0.34,
     side: THREE.BackSide,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -158,9 +160,10 @@ export function createScene(canvas) {
   _orionMarker = _makeOrionCapsule(kmToScene(ORION_MARKER_KM));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
+  _tryLoadOrionModel();
 
   const haloGeo = new THREE.SphereGeometry(kmToScene(ORION_HALO_KM), 16, 12);
-  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffefb0, transparent: true, opacity: 0.42 }));
+  _orionHalo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xb0d9ff, transparent: true, opacity: 0.24 }));
   _orionHalo.visible = true;
   _scene.add(_orionHalo);
 
@@ -231,7 +234,7 @@ export function setMissionTrailsBySegment(segments) {
   for (const seg of segments || []) {
     const phase = _getTrajectoryPhaseForSegment(seg);
     const style = phase === 'return' ? RETURN_ROUTE_STYLE : OUTBOUND_ROUTE_STYLE;
-    const line = makeLineFromSamples(seg.samples || [], { color: style.color, opacity: style.opacity, linewidth: 1 });
+    const line = makeLineFromSamples(seg.samples || [], { color: style.color, opacity: style.opacity, linewidth: 2.4 });
     if (line) _fullTrailGroup.add(line);
   }
 }
@@ -243,7 +246,7 @@ export function setTraversedTrailBySegment(segments, currentMs) {
     if (traversed.length < 2) continue;
     const phase = _getTrajectoryPhaseForSegment(seg);
     const style = phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE;
-    const line = makeLineFromSamples(traversed, { color: style.color, opacity: style.opacity, linewidth: 2 });
+    const line = makeLineFromSamples(traversed, { color: style.color, opacity: style.opacity, linewidth: 3.6 });
     if (line) _traversedTrailGroup.add(line);
   }
 }
@@ -251,7 +254,7 @@ export function setTraversedTrailBySegment(segments, currentMs) {
 export function setMoonTrajectoryBySegment(segments) {
   clearGroup(_moonTrajectoryGroup);
   for (const seg of segments || []) {
-    const line = makeLineFromSamples(seg.samples || [], { color: 0xd7dbff, opacity: 0.56, linewidth: 1 });
+    const line = makeLineFromSamples(seg.samples || [], { color: 0xe2e6ff, opacity: 0.78, linewidth: 2.2 });
     if (line) _moonTrajectoryGroup.add(line);
   }
 }
@@ -262,8 +265,8 @@ export function setEventMarkers(markers) {
     if (!marker?.positionKm) continue;
 
     const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(kmToScene(180), 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0xff9fcb, transparent: true, opacity: 0.98 }),
+      new THREE.SphereGeometry(kmToScene(240), 12, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffb2d8, transparent: true, opacity: 1 }),
     );
     sphere.position.set(
       kmToScene(marker.positionKm[0]),
@@ -509,7 +512,44 @@ export function setEventMarkerClickHandler(handler) {
 }
 
 export function setFollowCameraMode(mode) {
-  _followCameraMode = mode === 'cinematic' ? 'cinematic' : 'standard';
+  const allowed = ['chase', 'cinematic', 'side', 'earth-frame', 'moon-frame'];
+  _followCameraMode = allowed.includes(mode) ? mode : 'chase';
+}
+
+export function recenterFollowCamera() {
+  if (!_camera || !_controls || !_orionMarker) return;
+  const target = _orionMarker.position.clone();
+  const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
+    ? _orionVelocityScene.clone().normalize()
+    : new THREE.Vector3(1, 0, 0);
+  const trailing = velocityDir.clone().multiplyScalar(-1.35 * clampDistanceScale(_followCameraDistanceScale));
+  const up = new THREE.Vector3(0, 1, 0).multiplyScalar(0.55 * clampDistanceScale(_followCameraDistanceScale));
+  _camera.position.copy(target.clone().add(trailing).add(up));
+  _controls.target.copy(target);
+  _controls.update();
+}
+
+export function snapCameraToEventView({ eventPositionKm = null, moonKm = null } = {}) {
+  if (!_camera || !_controls) return;
+  if (Array.isArray(eventPositionKm) && eventPositionKm.length === 3) {
+    const ex = kmToScene(eventPositionKm[0]);
+    const ey = kmToScene(eventPositionKm[1]);
+    const ez = kmToScene(eventPositionKm[2]);
+    const target = new THREE.Vector3(ex, ey, ez);
+    const dir = _orionVelocityScene.lengthSq() > 1e-12
+      ? _orionVelocityScene.clone().normalize()
+      : new THREE.Vector3(1, 0, 0);
+    const cameraPos = target.clone()
+      .add(dir.clone().multiplyScalar(-1.9))
+      .add(new THREE.Vector3(0, 0.8, 1.2));
+    _startCameraTransition(cameraPos, target);
+    return;
+  }
+  if (Array.isArray(moonKm) && moonKm.length === 3) {
+    focusCameraPreset('moon-approach', { moonKm });
+    return;
+  }
+  focusCameraPreset('earth-centered');
 }
 
 export function setOrionManeuverLevel(level) {
@@ -563,7 +603,7 @@ export function setOrionAttitudeReference(reference = 'velocity') {
   _orionAttitudeReference = (r === 'moon' || r === 'earth') ? r : 'velocity';
 }
 
-function makeLineFromSamples(samples, { color, opacity }) {
+function makeLineFromSamples(samples, { color, opacity, linewidth = 1 }) {
   if (!samples || samples.length < 2) return null;
   const vertices = new Float32Array(samples.length * 3);
   for (let i = 0; i < samples.length; i++) {
@@ -576,7 +616,7 @@ function makeLineFromSamples(samples, { color, opacity }) {
   geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
   return new THREE.Line(
     geo,
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity }),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity, linewidth }),
   );
 }
 
@@ -645,10 +685,10 @@ function _makeStarField(count) {
     geo,
     new THREE.PointsMaterial({
       color: 0xe7f3ff,
-      size: 0.52,
+      size: 0.62,
       sizeAttenuation: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
     }),
   );
 }
@@ -685,9 +725,9 @@ function _makeOrionCapsule(radius) {
     specular: 0x2f2a24,
   });
   _orionAccentMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffef78,
+    color: 0xb6dbff,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.55,
   });
   _orionServiceMaterial = new THREE.MeshPhongMaterial({
     color: 0xa2acbf,
@@ -842,28 +882,28 @@ function _applyOrionCapsuleVisual(orionColorHex) {
   const trussBase = new THREE.Color(0x8894a9);
   if (_orionBodyMaterial) {
     _orionBodyMaterial.color.copy(bodyBase).lerp(accent, 0.18);
-    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.06);
+    _orionBodyMaterial.emissive.copy(accent).multiplyScalar(0.085);
   }
   if (_orionNoseMaterial) {
     _orionNoseMaterial.color.copy(noseBase).lerp(accent, 0.1);
-    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.04);
+    _orionNoseMaterial.emissive.copy(accent).multiplyScalar(0.06);
   }
   if (_orionServiceMaterial) {
     _orionServiceMaterial.color.copy(serviceBase).lerp(accent, 0.15);
-    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.04);
+    _orionServiceMaterial.emissive.copy(accent).multiplyScalar(0.06);
   }
   if (_orionPanelMaterial) {
     _orionPanelMaterial.color.copy(panelBase).lerp(accent, 0.08);
-    _orionPanelMaterial.emissive.copy(accent).multiplyScalar(0.02);
+    _orionPanelMaterial.emissive.copy(accent).multiplyScalar(0.035);
   }
   if (_orionTrussMaterial) {
     _orionTrussMaterial.color.copy(trussBase).lerp(accent, 0.1);
-    _orionTrussMaterial.emissive.copy(accent).multiplyScalar(0.03);
+    _orionTrussMaterial.emissive.copy(accent).multiplyScalar(0.045);
   }
   if (_orionAccentMaterial) _orionAccentMaterial.color.copy(accent);
   if (_orionSimpleMaterial) {
     _orionSimpleMaterial.color.copy(bodyBase).lerp(accent, 0.16);
-    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.05);
+    _orionSimpleMaterial.emissive.copy(accent).multiplyScalar(0.075);
   }
   if (_orionPlumeMaterial) _orionPlumeMaterial.color.copy(accent).lerp(new THREE.Color(0x8fd4ff), 0.55);
 }
@@ -936,14 +976,57 @@ function _tickFollowCamera() {
   if (!_followCameraEnabled || !_orionMarker || !_camera || !_controls) return;
   const target = _orionMarker.position.clone();
   _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
-  const baseOffset = (_followCameraMode === 'cinematic')
-    ? new THREE.Vector3(1.55, 0.74, 1.7)
-    : new THREE.Vector3(1.2, 0.55, 1.35);
-  const desired = target.clone().add(baseOffset.multiplyScalar(_followCameraDistanceScale));
-  const camLerp = _followCameraMode === 'cinematic' ? 0.05 : 0.075;
-  const tgtLerp = _followCameraMode === 'cinematic' ? 0.09 : 0.12;
+  const velocityDir = _orionVelocityScene.lengthSq() > 1e-12
+    ? _orionVelocityScene.clone().normalize()
+    : new THREE.Vector3(1, 0, 0);
+  const isCinematic = _followCameraMode === 'cinematic';
+  const isSide = _followCameraMode === 'side';
+  const isEarthFrame = _followCameraMode === 'earth-frame';
+  const isMoonFrame = _followCameraMode === 'moon-frame';
+  const forwardLead = isCinematic ? 0.52 : (isSide ? 0.2 : 0.38);
+  const upLift = isCinematic ? 0.74 : (isSide ? 0.48 : 0.55);
+  const trailingDistance = isCinematic ? 1.7 : (isSide ? 1.15 : 1.35);
+  const sideAxis = new THREE.Vector3().crossVectors(velocityDir, ORION_WORLD_UP).normalize();
+  const trailing = velocityDir.clone().multiplyScalar(-trailingDistance * _followCameraDistanceScale);
+  const lead = velocityDir.clone().multiplyScalar(forwardLead * _followCameraDistanceScale);
+  const up = new THREE.Vector3(0, 1, 0).multiplyScalar(upLift * _followCameraDistanceScale);
+  let desired = target.clone().add(trailing).add(up);
+  if (isSide && sideAxis.lengthSq() > 1e-8) {
+    desired.add(sideAxis.multiplyScalar(1.35 * _followCameraDistanceScale));
+  } else if (isEarthFrame) {
+    desired = target.clone().add(new THREE.Vector3(0.95, 0.55, 1.05).multiplyScalar(_followCameraDistanceScale));
+  } else if (isMoonFrame && _moonMesh) {
+    const towardMoon = _moonMesh.position.clone().sub(target).normalize();
+    desired = target.clone().add(towardMoon.multiplyScalar(-1.45 * _followCameraDistanceScale)).add(up);
+  }
+  const desiredTarget = target.clone().add(lead);
+  const camLerp = isCinematic ? 0.05 : 0.075;
+  const tgtLerp = isCinematic ? 0.09 : 0.12;
   _camera.position.lerp(desired, camLerp);
-  _controls.target.lerp(target, tgtLerp);
+  _controls.target.lerp(desiredTarget, tgtLerp);
+}
+
+function _tryLoadOrionModel() {
+  if (!_orionMarker) return;
+  const loader = new GLTFLoader();
+  const url = new URL('../../assets/models/orion.glb', import.meta.url).toString();
+  loader.load(
+    url,
+    (gltf) => {
+      if (!_orionMarker || !gltf?.scene) return;
+      _orionModelRoot = gltf.scene;
+      _orionModelRoot.scale.setScalar(0.42);
+      _orionModelRoot.rotation.set(0, 0, 0);
+      _orionModelRoot.position.set(0, 0, 0);
+      _orionMarker.add(_orionModelRoot);
+      if (_orionDetailGroup) _orionDetailGroup.visible = false;
+      if (_orionSimpleMesh) _orionSimpleMesh.visible = false;
+    },
+    undefined,
+    () => {
+      // Keep procedural capsule if GLB is unavailable.
+    },
+  );
 }
 
 function _tickAutoExposure() {
@@ -1007,8 +1090,8 @@ function _updateLightingForBodies() {
   _tmpMoonOffset.copy(_moonMesh.position).sub(_earthMesh.position);
   const dist = Math.max(0.1, _tmpMoonOffset.length());
   const norm = THREE.MathUtils.clamp(dist / kmToScene(430_000), 0, 1);
-  _sunLight.intensity = 2.25 + (1 - norm) * 0.75;
-  _rimLight.intensity = 0.58 + norm * 0.42;
+  _sunLight.intensity = 2.6 + (1 - norm) * 0.92;
+  _rimLight.intensity = 0.82 + norm * 0.52;
 }
 
 function _updateEventCalloutPosition() {
@@ -1094,68 +1177,68 @@ function getVisualPresetSettings(preset) {
   if (preset === 'standard') {
     return {
       id: 'standard',
-      baseExposure: 1.08,
-      autoExposureSpread: 0.14,
+      baseExposure: 1.16,
+      autoExposureSpread: 0.18,
       earthColor: 0x7aa9f1,
-      earthEmissive: 0x1f446f,
+      earthEmissive: 0x295685,
       earthSpecular: 0x4f596b,
       earthShininess: 22,
       moonColor: 0xe0e6f3,
-      moonEmissive: 0x323232,
+      moonEmissive: 0x414141,
       moonShininess: 9,
-      orionColor: 0xffe766,
-      orionHaloColor: 0xffe8a4,
-      orionHaloOpacity: 0.36,
-      atmosphereColor: 0x86c2ff,
-      atmosphereOpacity: 0.24,
+      orionColor: 0xffef84,
+      orionHaloColor: 0xffefb9,
+      orionHaloOpacity: 0.44,
+      atmosphereColor: 0x98ceff,
+      atmosphereOpacity: 0.31,
       starColor: 0xdeefff,
-      starOpacity: 0.82,
-      starSize: 0.48,
+      starOpacity: 0.9,
+      starSize: 0.56,
       bloom: BLOOM_STANDARD,
     };
   }
   if (preset === 'high-contrast') {
     return {
       id: 'high-contrast',
-      baseExposure: 1.15,
-      autoExposureSpread: 0.16,
+      baseExposure: 1.22,
+      autoExposureSpread: 0.2,
       earthColor: 0x9fccff,
-      earthEmissive: 0x1b3f70,
+      earthEmissive: 0x275891,
       earthSpecular: 0x677285,
       earthShininess: 28,
       moonColor: 0xf5f6ff,
-      moonEmissive: 0x2a2a2a,
+      moonEmissive: 0x3b3b3b,
       moonShininess: 12,
-      orionColor: 0xfff07f,
-      orionHaloColor: 0xfff2be,
-      orionHaloOpacity: 0.45,
-      atmosphereColor: 0xaed9ff,
-      atmosphereOpacity: 0.3,
+      orionColor: 0xfff59a,
+      orionHaloColor: 0xfff4cf,
+      orionHaloOpacity: 0.53,
+      atmosphereColor: 0xb9e0ff,
+      atmosphereOpacity: 0.36,
       starColor: 0xf1f7ff,
-      starOpacity: 0.93,
-      starSize: 0.54,
+      starOpacity: 0.98,
+      starSize: 0.6,
       bloom: BLOOM_CONTRAST,
     };
   }
   return {
     id: 'bright',
-    baseExposure: 1.2,
-    autoExposureSpread: 0.18,
+    baseExposure: 1.28,
+    autoExposureSpread: 0.22,
     earthColor: 0x8cb9ff,
-    earthEmissive: 0x265089,
+    earthEmissive: 0x2d629d,
     earthSpecular: 0x5a6272,
     earthShininess: 24,
     moonColor: 0xf0f2ff,
-    moonEmissive: 0x3f3f3f,
+    moonEmissive: 0x4d4d4d,
     moonShininess: 10,
-    orionColor: 0xffef78,
-    orionHaloColor: 0xffefb0,
-    orionHaloOpacity: 0.42,
-    atmosphereColor: 0x9fd3ff,
-    atmosphereOpacity: 0.28,
+    orionColor: 0xfff18f,
+    orionHaloColor: 0xfff3c0,
+    orionHaloOpacity: 0.5,
+    atmosphereColor: 0xaddaff,
+    atmosphereOpacity: 0.35,
     starColor: 0xe7f3ff,
-    starOpacity: 0.9,
-    starSize: 0.52,
+    starOpacity: 0.97,
+    starSize: 0.6,
     bloom: BLOOM_BRIGHT,
   };
 }
