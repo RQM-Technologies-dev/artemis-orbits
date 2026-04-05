@@ -230,6 +230,10 @@ function getDomRefs() {
     visualPresetSelect: pick('visual-preset-select'),
     perfModeSelect: pick('perf-select'),
     btnCopyLink: pick('btn-copy-link'),
+    btnShareX: pickOptional('btn-share-x'),
+    btnShareReddit: pickOptional('btn-share-reddit'),
+    btnShareLinkedin: pickOptional('btn-share-linkedin'),
+    btnShareEmail: pickOptional('btn-share-email'),
     controlsHint: pick('controls-hint'),
     btnDismissHint: pick('btn-dismiss-hint'),
     btnCapture: pickOptional('btn-export-image'),
@@ -1035,6 +1039,7 @@ function wireUiEvents() {
       setSidebarStatus('Unable to copy link in this browser');
     }
   });
+  wireSocialShareButtons();
 
   refs.timelineSlider.addEventListener('mousedown', () => { state.scrubbing = true; });
   refs.timelineSlider.addEventListener('touchstart', () => { state.scrubbing = true; }, { passive: true });
@@ -1050,6 +1055,54 @@ function wireUiEvents() {
   window.addEventListener('mouseup', () => { state.scrubbing = false; });
   window.addEventListener('touchend', () => { state.scrubbing = false; });
   window.addEventListener('keydown', onKeyboardShortcuts);
+}
+
+function wireSocialShareButtons() {
+  const shareText = 'Explore NASA Artemis mission trajectories in this interactive 3D viewer';
+  const shareSubject = 'Explore NASA Artemis Orbits';
+  const openShareWindow = (href) => {
+    const popup = window.open(href, '_blank', 'noopener,noreferrer,width=760,height=620');
+    if (!popup) window.open(href, '_blank', 'noopener,noreferrer');
+  };
+  const getShareState = () => {
+    const currentUrl = window.location.href;
+    return {
+      currentUrl,
+      encodedUrl: encodeURIComponent(currentUrl),
+      encodedText: encodeURIComponent(shareText),
+      encodedSubject: encodeURIComponent(shareSubject),
+    };
+  };
+
+  if (refs.btnShareX) {
+    refs.btnShareX.addEventListener('click', () => {
+      const { encodedUrl, encodedText } = getShareState();
+      openShareWindow(`https://x.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`);
+      setSidebarStatus('Opened X share composer');
+    });
+  }
+  if (refs.btnShareReddit) {
+    refs.btnShareReddit.addEventListener('click', () => {
+      const { encodedUrl, encodedText } = getShareState();
+      openShareWindow(`https://www.reddit.com/submit?url=${encodedUrl}&title=${encodedText}`);
+      setSidebarStatus('Opened Reddit share composer');
+    });
+  }
+  if (refs.btnShareLinkedin) {
+    refs.btnShareLinkedin.addEventListener('click', () => {
+      const { encodedUrl } = getShareState();
+      openShareWindow(`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`);
+      setSidebarStatus('Opened LinkedIn share composer');
+    });
+  }
+  if (refs.btnShareEmail) {
+    refs.btnShareEmail.addEventListener('click', () => {
+      const { currentUrl, encodedSubject } = getShareState();
+      const body = encodeURIComponent(`${shareText}\n\n${currentUrl}`);
+      window.location.href = `mailto:?subject=${encodedSubject}&body=${body}`;
+      setSidebarStatus('Opened email share draft');
+    });
+  }
 }
 
 function setActiveTab(id) {

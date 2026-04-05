@@ -61,6 +61,35 @@
             "priceCurrency": "USD"
           },
           "description": "Interactive 3D visualization of Artemis mission trajectories, mission events, and timeline playback."
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is NASA Artemis Orbits?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "NASA Artemis Orbits is an interactive 3D mission viewer for Artemis trajectories, mission events, and timeline playback."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Where does the trajectory data come from?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Trajectory visualizations are based on normalized mission data sourced from official NASA OEM releases and moon vectors from JPL Horizons."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How can I share a specific moment in a mission?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Use the share controls to copy or post the current URL. The link preserves mission and timeline state so others can open the same view."
+              }
+            }
+          ]
         }
       ]
     }
@@ -189,6 +218,19 @@
         </div>
       </div>
 
+      <div class="card" id="share-card">
+        <h3>Share Artemis Orbits</h3>
+        <p class="hint-text">Help other Artemis fans find this viewer.</p>
+        <div class="controls-row">
+          <button id="btn-share-x" class="btn btn-sm">Share on X</button>
+          <button id="btn-share-reddit" class="btn btn-sm">Share on Reddit</button>
+        </div>
+        <div class="controls-row">
+          <button id="btn-share-linkedin" class="btn btn-sm">Share on LinkedIn</button>
+          <button id="btn-share-email" class="btn btn-sm">Share via Email</button>
+        </div>
+      </div>
+
       <div class="card" id="camera-card">
         <h3>Camera</h3>
         <div class="controls-row">
@@ -254,6 +296,22 @@
       <div class="card" id="annotations-card">
         <h3>Mission annotations</h3>
         <ul id="mission-annotations" class="annotation-list"></ul>
+      </div>
+
+      <div class="card" id="faq-card">
+        <h3>FAQ</h3>
+        <details class="faq-item">
+          <summary>What is NASA Artemis Orbits?</summary>
+          <p class="faq-answer">An interactive 3D viewer for Artemis mission trajectories, event context, and mission-time playback controls.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Where does the mission data come from?</summary>
+          <p class="faq-answer">From normalized official NASA OEM trajectory data and moon vectors sourced from JPL Horizons.</p>
+        </details>
+        <details class="faq-item">
+          <summary>How do I share a specific mission moment?</summary>
+          <p class="faq-answer">Use the share controls to copy/post the current URL. It retains mission, camera, and timeline context in query params.</p>
+        </details>
       </div>
 
       <div class="card artemis3-card hidden" id="artemis3-card" aria-live="polite">

@@ -404,6 +404,22 @@ body {
   color: #8fa7cc;
 }
 
+.faq-item + .faq-item {
+  margin-top: 6px;
+}
+.faq-item summary {
+  cursor: pointer;
+  color: #cfe2ff;
+  font-size: .78rem;
+  font-weight: 600;
+}
+.faq-answer {
+  margin-top: 5px;
+  font-size: .74rem;
+  color: #d9e7ff;
+  line-height: 1.42;
+}
+
 .hidden { display: none !important; }
 
 .artemis3-card h4 {
