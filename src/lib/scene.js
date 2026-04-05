@@ -42,6 +42,8 @@ const SCENE_DYNAMIC_UPDATE_INTERVAL_MS = 33;
 const SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS = 75;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
+const FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC = 8.5;
+const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
 const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
 const ORION_LOD_HIGH_DISTANCE = 34;
@@ -101,6 +103,7 @@ let _bloomPass = null;
 let _cameraTransition = null;
 let _followCameraEnabled = false;
 let _followCameraDistanceScale = 1;
+let _controlsUserInteracting = false;
 let _sceneVisualPreset = 'standard';
 let _visualPresetConfig = null;
 let _eventMarkerClickHandler = null;
@@ -238,6 +241,14 @@ export function createScene(canvas) {
   _controls.zoomSpeed = 1.15;
   _controls.minDistance = 0.08;
   _controls.maxDistance = 1_200;
+  _controls.addEventListener('start', () => {
+    _controlsUserInteracting = true;
+  });
+  _controls.addEventListener('end', () => {
+    _controlsUserInteracting = false;
+    _syncFollowScaleFromCamera();
+    _notifyZoomChange();
+  });
 
   _renderer.domElement.addEventListener('pointerdown', _onPointerDown);
   _renderer.domElement.addEventListener('pointerup', _onPointerUp);
@@ -428,6 +439,10 @@ export function renderScene() {
   }
   _updateEventCalloutPosition();
   _controls.update();
+  if (_followCameraEnabled && _controlsUserInteracting) {
+    // Preserve user pinch/wheel zoom while follow camera is active.
+    _syncFollowScaleFromCamera();
+  }
   if (_composer && _bloomPass?.enabled) _composer.render();
   else _renderer.render(_scene, _camera);
 }
@@ -502,7 +517,8 @@ export function setZoomLevel(normalized) {
   if (!_camera || !_controls) return;
   const f = THREE.MathUtils.clamp(Number(normalized), 0, 1);
   if (_followCameraEnabled) {
-    const targetScale = FOLLOW_DISTANCE_MIN + (1 - f) * (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN);
+    const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+    const targetScale = minFollowDistance + (1 - f) * (maxFollowDistance - minFollowDistance);
     _followCameraDistanceScale = clampDistanceScale(targetScale);
     _notifyZoomChange();
     return;
@@ -522,7 +538,8 @@ export function setZoomLevel(normalized) {
 export function getZoomLevel() {
   if (!_camera || !_controls) return 0.5;
   if (_followCameraEnabled) {
-    const pct = 1 - ((_followCameraDistanceScale - FOLLOW_DISTANCE_MIN) / (FOLLOW_DISTANCE_MAX - FOLLOW_DISTANCE_MIN));
+    const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+    const pct = 1 - ((_followCameraDistanceScale - minFollowDistance) / (maxFollowDistance - minFollowDistance));
     return THREE.MathUtils.clamp(pct, 0, 1);
   }
   const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
@@ -1298,8 +1315,9 @@ function _tryLoadOrionModel() {
 
 function _tickAutoExposure() {
   if (!_renderer || !_camera || !_controls || !_visualPresetConfig) return;
+  const { max: maxFollowDistance } = _getFollowDistanceLimits();
   const targetDistance = _followCameraEnabled
-    ? THREE.MathUtils.lerp(_controls.minDistance, _controls.maxDistance, 0.2 + (_followCameraDistanceScale / FOLLOW_DISTANCE_MAX) * 0.45)
+    ? THREE.MathUtils.lerp(_controls.minDistance, _controls.maxDistance, 0.2 + (_followCameraDistanceScale / maxFollowDistance) * 0.45)
     : _camera.position.distanceTo(_controls.target);
   if (!Number.isFinite(targetDistance)) return;
   const minDistance = Number.isFinite(_controls.minDistance) ? _controls.minDistance : 0.1;
@@ -1436,12 +1454,48 @@ function _onPointerUp(event) {
 }
 
 function _onWheel() {
-  if (_followCameraEnabled) _followCameraDistanceScale = clampDistanceScale(_followCameraDistanceScale);
+  if (_followCameraEnabled) {
+    // Wheel/pinch deltas are applied by OrbitControls; capture result on next frame.
+    requestAnimationFrame(() => {
+      _syncFollowScaleFromCamera();
+      _notifyZoomChange();
+    });
+    return;
+  }
   _notifyZoomChange();
 }
 
 function clampDistanceScale(value) {
-  return THREE.MathUtils.clamp(value, FOLLOW_DISTANCE_MIN, FOLLOW_DISTANCE_MAX);
+  const { min: minFollowDistance, max: maxFollowDistance } = _getFollowDistanceLimits();
+  return THREE.MathUtils.clamp(value, minFollowDistance, maxFollowDistance);
+}
+
+function _getFollowDistanceLimits() {
+  const phoneFriendlyCinematic = _followCameraMode === 'cinematic'
+    && typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY).matches;
+  return {
+    min: FOLLOW_DISTANCE_MIN,
+    max: phoneFriendlyCinematic ? FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC : FOLLOW_DISTANCE_MAX,
+  };
+}
+
+function _syncFollowScaleFromCamera() {
+  if (!_followCameraEnabled || !_camera || !_orionMarker) return;
+  const baseDistance = _getFollowCameraBaseDistance(_followCameraMode);
+  if (!Number.isFinite(baseDistance) || baseDistance <= 1e-6) return;
+  const cameraToOrion = _camera.position.distanceTo(_orionMarker.position);
+  if (!Number.isFinite(cameraToOrion) || cameraToOrion <= 0) return;
+  _followCameraDistanceScale = clampDistanceScale(cameraToOrion / baseDistance);
+}
+
+function _getFollowCameraBaseDistance(mode) {
+  if (mode === 'cinematic') return Math.hypot(1.7, 0.74);
+  if (mode === 'side') return Math.hypot(1.15, 0.48, 1.35);
+  if (mode === 'earth-frame') return Math.hypot(0.95, 0.55, 1.05);
+  if (mode === 'moon-frame') return Math.hypot(1.45, 0.55);
+  return Math.hypot(1.35, 0.55);
 }
 
 function getVisualPresetSettings(preset) {
