@@ -29,9 +29,29 @@ body {
   flex-direction: column;
 }
 
-#app-header { padding: 14px 20px 10px; border-bottom: 1px solid var(--border); background: #060810; text-align: center; }
+#app-header {
+  position: relative;
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #060810;
+  text-align: center;
+}
 #app-header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: .04em; color: #fff; }
 .subtitle { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
+.rqm-header-link {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  color: #9fd0ff;
+  text-decoration: none;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.rqm-header-link:hover {
+  color: #c6e3ff;
+  text-decoration: underline;
+}
 
 #mission-nav {
   display: flex;
