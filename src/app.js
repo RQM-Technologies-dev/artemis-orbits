@@ -123,12 +123,12 @@ const state = {
   },
   ui: {
     performanceMode: 'auto',
-    followCamera: false,
+    followCamera: true,
     followCameraMode: getDefaultFollowModeForMission(ACTIVE_MISSION_ID),
     attitudeReference: 'velocity',
     eventVoiceEnabled: false,
     eventVoiceVolume: 0.75,
-    cameraPreset: 'mission-fit',
+    cameraPreset: 'follow-orion',
     lastNonFollowCamera: 'mission-fit',
     visualPreset: 'bright',
     zoomLevel: 0.5,
@@ -2021,11 +2021,17 @@ function parseInitialUiStateFromUrl() {
     refs.perfModeSelect.value = state.ui.performanceMode;
   }
   setPerformanceMode(state.ui.performanceMode);
-  if (['earth-centered', 'moon-approach', 'mission-fit', 'follow-orion'].includes(cam || '')) {
+  const hasCameraPresetInUrl = ['earth-centered', 'moon-approach', 'mission-fit', 'follow-orion'].includes(cam || '');
+  if (hasCameraPresetInUrl) {
     state.ui.cameraPreset = cam;
     if (cam !== 'follow-orion') state.ui.lastNonFollowCamera = cam;
   }
-  state.ui.followCamera = follow === '1';
+  if (follow === '1' || follow === '0') {
+    state.ui.followCamera = follow === '1';
+    if (!hasCameraPresetInUrl) {
+      state.ui.cameraPreset = state.ui.followCamera ? 'follow-orion' : state.ui.lastNonFollowCamera;
+    }
+  }
   if (state.ui.cameraPreset === 'follow-orion') state.ui.followCamera = true;
   setFollowButtonUi();
   state.ui.liveMode = live === '1';
