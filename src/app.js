@@ -92,6 +92,24 @@ const ARTEMIS_5_PROFILE_MODES = [
   'archived-detailed-profile',
   'archived-nrho-detail',
 ];
+const LANDING_DEFAULTS = Object.freeze({
+  missionId: ACTIVE_MISSION_ID,
+  speedMissionMsPerWallSecond: 3_600_000,
+  performanceMode: 'auto',
+  followCamera: true,
+  attitudeReference: 'velocity',
+  eventVoiceEnabled: false,
+  eventVoiceVolume: 0,
+  cameraPreset: 'follow-orion',
+  zoomLevel: 0.843,
+  visualPreset: 'standard',
+  liveMode: false,
+});
+const LANDING_DEFAULT_UTC_BY_MISSION = Object.freeze({
+  'artemis-2': '2026-04-02T01:57:37Z',
+});
+const HUD_REFRESH_INTERVAL_MS = 200;
+const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 
 function getDefaultFollowModeForMission(missionId) {
   return DEFAULT_FOLLOW_MODE_BY_MISSION[missionId] || 'chase';
@@ -127,17 +145,17 @@ const state = {
     profileMode: ARTEMIS_5_PROFILE_DEFAULT,
   },
   ui: {
-    performanceMode: 'auto',
+    performanceMode: LANDING_DEFAULTS.performanceMode,
     followCamera: true,
     followCameraMode: getDefaultFollowModeForMission(ACTIVE_MISSION_ID),
-    attitudeReference: 'velocity',
-    eventVoiceEnabled: false,
-    eventVoiceVolume: 0.75,
-    cameraPreset: 'follow-orion',
+    attitudeReference: LANDING_DEFAULTS.attitudeReference,
+    eventVoiceEnabled: LANDING_DEFAULTS.eventVoiceEnabled,
+    eventVoiceVolume: LANDING_DEFAULTS.eventVoiceVolume,
+    cameraPreset: LANDING_DEFAULTS.cameraPreset,
     lastNonFollowCamera: 'mission-fit',
-    visualPreset: 'bright',
-    zoomLevel: 0.5,
-    liveMode: false,
+    visualPreset: LANDING_DEFAULTS.visualPreset,
+    zoomLevel: LANDING_DEFAULTS.zoomLevel,
+    liveMode: LANDING_DEFAULTS.liveMode,
     artemis3Mode: ARTEMIS_3_PROFILE_DEFAULT,
     artemis5Mode: ARTEMIS_5_PROFILE_DEFAULT,
   },
@@ -154,12 +172,17 @@ let _lastHeavyUiUpdateNow = 0;
 let _lastTrailUpdateNow = 0;
 let _lastUrlSyncNow = 0;
 let _lastZoomUiUpdateNow = 0;
+let _pendingDefaultLandingUtc = null;
+let _lastHudRefreshAt = 0;
+let _phoneFriendlyMql = null;
+let _phoneFriendlyAutoplayKey = '';
 
 bootstrapApp();
 
 function bootstrapApp() {
   try {
     refs = getDomRefs();
+    initPhoneFriendlyMode();
     try {
       createScene(refs.canvas);
       setZoomChangeListener(() => syncZoomUiFromScene(true));
@@ -195,6 +218,39 @@ function bootstrapApp() {
   }
 }
 
+function initPhoneFriendlyMode() {
+  if (typeof window.matchMedia !== 'function') return;
+  _phoneFriendlyMql = window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY);
+  const applyPhoneFriendlyClass = () => {
+    const enabled = Boolean(_phoneFriendlyMql?.matches);
+    document.body.classList.toggle('phone-friendly-mode', enabled);
+    if (enabled) maybeStartPhoneFriendlyPlayback();
+  };
+  applyPhoneFriendlyClass();
+  const onChange = () => applyPhoneFriendlyClass();
+  if (typeof _phoneFriendlyMql.addEventListener === 'function') {
+    _phoneFriendlyMql.addEventListener('change', onChange);
+  } else if (typeof _phoneFriendlyMql.addListener === 'function') {
+    _phoneFriendlyMql.addListener(onChange);
+  }
+}
+
+function isPhoneFriendlyMode() {
+  return Boolean(_phoneFriendlyMql?.matches);
+}
+
+function maybeStartPhoneFriendlyPlayback() {
+  if (!isPhoneFriendlyMode()) return;
+  if (!hasMissionTimeline() || state.playing || state.ui.liveMode) return;
+  const autoplayKey = `${state.activeMissionId}:${state.ui.artemis3Mode}:${state.ui.artemis5Mode}`;
+  if (_phoneFriendlyAutoplayKey === autoplayKey) return;
+  state.playing = true;
+  refs.btnPlay.textContent = '⏸ Pause';
+  setSceneStartMissionButtonVisible(false);
+  _phoneFriendlyAutoplayKey = autoplayKey;
+  updateScene();
+}
+
 function getDomRefs() {
   const pick = (id) => {
     const node = document.getElementById(id);
@@ -206,6 +262,7 @@ function getDomRefs() {
   return {
     tabBar: pick('mission-tabs'),
     canvas: pick('three-canvas'),
+    btnSceneStartMission: pickOptional('btn-scene-start-mission'),
     overlayMsg: pick('scene-overlay-msg'),
     sceneDisclaimer: pickOptional('scene-mode-disclaimer'),
     debugOverlay: pickOptional('scene-debug-overlay'),
@@ -517,6 +574,10 @@ function refreshTelemetryOverlay(values) {
   if (refs.sbEarthDist) refs.sbEarthDist.textContent = values.earthDistLabel;
   if (refs.sbMoonDist) refs.sbMoonDist.textContent = values.moonDistLabel;
   if (refs.sbNextEvent) refs.sbNextEvent.textContent = values.nextEventLabel;
+}
+
+function clearPerformanceCaches() {
+  _lastHudRefreshAt = 0;
 }
 
 function buildSpeedOptions() {
@@ -1218,6 +1279,9 @@ function wireUiEvents() {
     if (state.playing && state.currentMs >= state.missionStopMs) state.currentMs = state.missionStartMs;
     setSidebarStatus(state.playing ? 'Playback running' : 'Playback paused');
   });
+  if (refs.btnSceneStartMission) {
+    refs.btnSceneStartMission.addEventListener('click', () => startMissionFromOverlay());
+  }
 
   refs.btnReset.addEventListener('click', () => {
     if (!hasMissionTimeline()) {
@@ -1610,6 +1674,7 @@ async function selectMission(id) {
       ? `Mission scene active — Artemis V (${artemis5Profile?.displayName || 'Current mission'})`
       : `Mission scene active — ${mission.displayName}`;
   setSidebarStatus(missionLabel);
+  maybeStartPhoneFriendlyPlayback();
 
   if (!state.moonData) setErrorMessage('Moon JSON missing; using default Moon position.');
   if (!loadedEvents) setErrorMessage('Event JSON missing; continuing without event markers.');
@@ -1683,14 +1748,16 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     refs.sbMet.textContent = formatMet(state.missionStartMs, state.currentMs);
   }
 
-  const segState = findSegment(state.missionData, state.currentMs);
-  const moonState = getInterpolatedState(state.moonData, state.currentMs);
+  const missionBounds = state.missionData?.__cachedSortedSegmentBounds || null;
+  const moonBounds = state.moonData?.__cachedSortedSegmentBounds || null;
+  const segState = findSegment(state.missionData, state.currentMs, missionBounds);
+  const moonState = getInterpolatedState(state.moonData, state.currentMs, moonBounds);
 
   let orionState = null;
   if (segState.state === 'in-segment') {
     orionState = interpolateSegment(segState.segment, segState.snappedMs);
   } else if (segState.state === 'gap') {
-    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs);
+    const snapped = findSegment(state.missionData, segState.gap.nearestBoundaryMs, missionBounds);
     if (snapped.segment) {
       orionState = interpolateSegment(snapped.segment, snapped.snappedMs);
     }
@@ -1712,13 +1779,20 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     if (eventCtx.active) refs.sbEvent.textContent = `${eventCtx.active.label}${eventVerificationTag(eventCtx.active)} (active)`;
     else if (eventCtx.nearest) refs.sbEvent.textContent = `${eventCtx.nearest.label}${eventVerificationTag(eventCtx.nearest)} (nearest)`;
     else refs.sbEvent.textContent = 'No events loaded';
-    refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+    const shouldRefreshHud = (now - _lastHudRefreshAt) >= HUD_REFRESH_INTERVAL_MS || !state.playing;
+    if (shouldRefreshHud) {
+      refreshTelemetryOverlay(getCurrentTelemetryValues(orionState, moonState, eventCtx));
+      _lastHudRefreshAt = now;
+    }
 
     const maneuverIntensity = getManeuverIntensity(state.events, state.currentMs);
     setOrionManeuverLevel(maneuverIntensity);
     const sceneCalloutEvent = getSceneEventCallout(state.events, state.currentMs);
-    setActiveEventCallout(sceneCalloutEvent);
-    maybeSpeakSceneEvent(sceneCalloutEvent);
+    const showSceneStartButton = shouldShowSceneStartMissionButton(sceneCalloutEvent);
+    setSceneStartMissionButtonVisible(showSceneStartButton);
+    const visualCalloutEvent = sceneCalloutEvent?.id === 'mission-start' ? null : sceneCalloutEvent;
+    setActiveEventCallout(visualCalloutEvent);
+    maybeSpeakSceneEvent(visualCalloutEvent);
     _lastHeavyUiUpdateNow = now;
   }
   if (shouldSyncUrl) {
@@ -1727,8 +1801,8 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
   }
 }
 
-function getInterpolatedState(data, tMs) {
-  const segState = findSegment(data, tMs);
+function getInterpolatedState(data, tMs, segmentBounds = null) {
+  const segState = findSegment(data, tMs, segmentBounds);
   if (segState?.segment && segState?.snappedMs != null) {
     return interpolateSegment(segState.segment, segState.snappedMs);
   }
@@ -1802,8 +1876,34 @@ function resetLoadedMissionState() {
   if (refs.sbEarthDist) refs.sbEarthDist.textContent = '—';
   if (refs.sbMoonDist) refs.sbMoonDist.textContent = '—';
   if (refs.sbNextEvent) refs.sbNextEvent.textContent = '—';
+  setSceneStartMissionButtonVisible(false);
   refreshTimelineEventTicks();
   resetSceneDynamicState();
+}
+
+function setSceneStartMissionButtonVisible(visible) {
+  if (!refs?.btnSceneStartMission) return;
+  refs.btnSceneStartMission.classList.toggle('hidden', !visible);
+}
+
+function shouldShowSceneStartMissionButton(sceneCalloutEvent) {
+  if (!sceneCalloutEvent || sceneCalloutEvent.id !== 'mission-start') return false;
+  if (!hasMissionTimeline() || state.playing) return false;
+  return Math.abs(state.currentMs - state.missionStartMs) <= EVENT_NAV_EPS_MS;
+}
+
+function startMissionFromOverlay() {
+  if (!hasMissionTimeline()) {
+    setSidebarStatus('Playback unavailable — mission data not loaded');
+    return;
+  }
+  if (state.ui.liveMode) setLiveModeUi(false);
+  state.currentMs = state.missionStartMs;
+  state.playing = true;
+  refs.btnPlay.textContent = '⏸ Pause';
+  setSceneStartMissionButtonVisible(false);
+  updateScene();
+  setSidebarStatus('Playback running');
 }
 
 function jumpToMissionStart() {
@@ -2026,6 +2126,7 @@ function refreshMissionAnnotations(mission) {
 
 function parseInitialUiStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
+  _pendingDefaultLandingUtc = params.toString() ? null : (LANDING_DEFAULT_UTC_BY_MISSION[state.activeMissionId] || null);
   const mission = params.get('mission');
   const speed = params.get('speed');
   const perf = params.get('perf');
@@ -2097,9 +2198,21 @@ function parseInitialUiStateFromUrl() {
   }
 }
 
+function getLandingDefaultUtcForMission(missionId) {
+  return LANDING_DEFAULT_UTC_BY_MISSION[missionId] || null;
+}
+
+function getLandingDefaultFollowModeForMission(missionId) {
+  if (missionId === LANDING_DEFAULTS.missionId) {
+    return getDefaultFollowModeForMission(missionId);
+  }
+  return getDefaultFollowModeForMission(missionId);
+}
+
 function applyInitialTimeOverrideFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const utc = params.get('utc');
+  const utc = params.get('utc') || _pendingDefaultLandingUtc;
+  _pendingDefaultLandingUtc = null;
   if (!utc) return;
   const parsed = Date.parse(utc);
   if (!Number.isFinite(parsed)) return;
@@ -2108,29 +2221,43 @@ function applyInitialTimeOverrideFromUrl() {
 }
 
 function syncUrlState() {
-  const params = new URLSearchParams(window.location.search);
-  if (state.activeMissionId) params.set('mission', state.activeMissionId);
-  if (Number.isFinite(state.currentMs) && state.currentMs > 0) params.set('utc', formatUtc(state.currentMs));
-  params.set('speed', refs.speedSelect.value);
-  params.set('perf', state.ui.performanceMode);
-  params.set('follow', state.ui.followCamera ? '1' : '0');
-  params.set('followMode', state.ui.followCameraMode || 'chase');
-  params.set('attitude', state.ui.attitudeReference || 'velocity');
-  params.set('voice', state.ui.eventVoiceEnabled ? '1' : '0');
-  params.set('voiceVol', (Number.isFinite(state.ui.eventVoiceVolume) ? state.ui.eventVoiceVolume : 0.75).toFixed(2));
-  params.set('cam', state.ui.cameraPreset);
-  params.set('zoom', (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3));
-  params.set('vpreset', state.ui.visualPreset || getVisualPreset());
-  params.set('live', state.ui.liveMode ? '1' : '0');
+  const params = new URLSearchParams();
+  const missionId = state.activeMissionId || LANDING_DEFAULTS.missionId;
+  const speedValue = String(refs.speedSelect.value);
+  const perfValue = state.ui.performanceMode || LANDING_DEFAULTS.performanceMode;
+  const followValue = state.ui.followCamera ? '1' : '0';
+  const followModeValue = state.ui.followCameraMode || getLandingDefaultFollowModeForMission(missionId);
+  const attitudeValue = state.ui.attitudeReference || LANDING_DEFAULTS.attitudeReference;
+  const voiceValue = state.ui.eventVoiceEnabled ? '1' : '0';
+  const voiceVolValue = (Number.isFinite(state.ui.eventVoiceVolume) ? state.ui.eventVoiceVolume : LANDING_DEFAULTS.eventVoiceVolume).toFixed(2);
+  const cameraValue = state.ui.cameraPreset || LANDING_DEFAULTS.cameraPreset;
+  const zoomValue = (Number.isFinite(state.ui.zoomLevel) ? state.ui.zoomLevel : getZoomLevel()).toFixed(3);
+  const visualPresetValue = state.ui.visualPreset || getVisualPreset();
+  const liveValue = state.ui.liveMode ? '1' : '0';
+  const utcValue = Number.isFinite(state.currentMs) && state.currentMs > 0 ? formatUtc(state.currentMs) : '';
+  const defaultUtcForMission = getLandingDefaultUtcForMission(missionId);
+
+  if (missionId !== LANDING_DEFAULTS.missionId) params.set('mission', missionId);
+  if (speedValue !== String(LANDING_DEFAULTS.speedMissionMsPerWallSecond)) params.set('speed', speedValue);
+  if (perfValue !== LANDING_DEFAULTS.performanceMode) params.set('perf', perfValue);
+  if (followValue !== (LANDING_DEFAULTS.followCamera ? '1' : '0')) params.set('follow', followValue);
+  if (followModeValue !== getLandingDefaultFollowModeForMission(missionId)) params.set('followMode', followModeValue);
+  if (attitudeValue !== LANDING_DEFAULTS.attitudeReference) params.set('attitude', attitudeValue);
+  if (voiceValue !== (LANDING_DEFAULTS.eventVoiceEnabled ? '1' : '0')) params.set('voice', voiceValue);
+  if (voiceVolValue !== LANDING_DEFAULTS.eventVoiceVolume.toFixed(2)) params.set('voiceVol', voiceVolValue);
+  if (cameraValue !== LANDING_DEFAULTS.cameraPreset) params.set('cam', cameraValue);
+  if (zoomValue !== LANDING_DEFAULTS.zoomLevel.toFixed(3)) params.set('zoom', zoomValue);
+  if (visualPresetValue !== LANDING_DEFAULTS.visualPreset) params.set('vpreset', visualPresetValue);
+  if (liveValue !== (LANDING_DEFAULTS.liveMode ? '1' : '0')) params.set('live', liveValue);
+  if (utcValue && utcValue !== defaultUtcForMission) params.set('utc', utcValue);
+
   if (state.activeMissionId === 'artemis-3') {
-    params.set('a3mode', state.ui.artemis3Mode || ARTEMIS_3_PROFILE_DEFAULT);
-  } else {
-    params.delete('a3mode');
+    const a3Mode = state.ui.artemis3Mode || ARTEMIS_3_PROFILE_DEFAULT;
+    if (a3Mode !== ARTEMIS_3_PROFILE_DEFAULT) params.set('a3mode', a3Mode);
   }
   if (state.activeMissionId === 'artemis-5') {
-    params.set('a5mode', state.ui.artemis5Mode || ARTEMIS_5_PROFILE_DEFAULT);
-  } else {
-    params.delete('a5mode');
+    const a5Mode = state.ui.artemis5Mode || ARTEMIS_5_PROFILE_DEFAULT;
+    if (a5Mode !== ARTEMIS_5_PROFILE_DEFAULT) params.set('a5mode', a5Mode);
   }
   const query = params.toString();
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;

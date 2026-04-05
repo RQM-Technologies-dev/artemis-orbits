@@ -133,6 +133,16 @@ body {
 #three-canvas { display: block; width: 100%; height: 100%; }
 .scene-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 32px; text-align: center; background: rgba(7,9,15,.75); color: var(--text-dim); font-size: .9rem; line-height: 1.7; pointer-events: none; }
 .scene-overlay.hidden { display: none; }
+.scene-start-mission-btn {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  z-index: 14;
+  transform: translateX(-50%);
+  min-width: 150px;
+  pointer-events: auto;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.4);
+}
 .scene-mode-disclaimer {
   position: absolute;
   right: 12px;
@@ -757,5 +767,40 @@ body {
     margin-top: 5px;
     font-size: .5rem;
     letter-spacing: .06em;
+  }
+}
+
+@media (max-width: 700px) {
+  body.phone-friendly-mode {
+    overflow: hidden;
+  }
+  body.phone-friendly-mode #app-header,
+  body.phone-friendly-mode #mission-nav,
+  body.phone-friendly-mode #sidebar,
+  body.phone-friendly-mode #mission-strip,
+  body.phone-friendly-mode #scene-telemetry,
+  body.phone-friendly-mode #controls-hint,
+  body.phone-friendly-mode #scene-mode-disclaimer,
+  body.phone-friendly-mode #scene-overlay-msg {
+    display: none !important;
+  }
+  body.phone-friendly-mode #app-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+  body.phone-friendly-mode #scene-panel {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+  body.phone-friendly-mode #three-canvas {
+    width: 100%;
+    height: 100%;
+  }
+  body.phone-friendly-mode .scene-start-mission-btn {
+    top: 14px;
+    min-width: 130px;
+    font-size: .76rem;
   }
 }
