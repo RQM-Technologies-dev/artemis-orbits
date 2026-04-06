@@ -99,7 +99,7 @@ export const MISSIONS = [
     id: 'artemis-5',
     displayName: 'Artemis V',
     status: 'official-current',
-    enabled: true,
+    enabled: false,
     officialPageUrl:
       'https://www.nasa.gov/event/artemis-v/',
     officialZipUrl:  null,
