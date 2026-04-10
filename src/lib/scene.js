@@ -18,6 +18,9 @@ const SUN_RADIUS_KM = 696_340;
 const SUN_EARTH_DISTANCE_KM = 149_597_870; // 1 AU
 const EARTH_CLOUD_LAYER_SCALE = 1.012;
 const ORION_MARKER_KM = 760;
+const ORION_SCALE_DEFAULT = 1;
+const ORION_SCALE_EARTH_APPROACH_MIN = 0.58;
+const ORION_SCALE_SPLASHDOWN = 0.5;
 const ORION_HALO_KM = 520;
 const ORION_MODEL_SCALE = 0.78;
 const ORION_USA_DECAL_WIDTH_SCALE = 0.96;
@@ -1112,6 +1115,19 @@ function clearGroup(group) {
 
 function _updateOrionVisualAttachments() {
   if (!_orionMarker) return;
+  const pos = _orionMarker.position;
+  const radiusKm = Math.hypot(pos.x, pos.y, pos.z) * 10_000;
+  const altitudeKm = Math.max(0, radiusKm - EARTH_RADIUS_KM);
+  const approachFactor = THREE.MathUtils.clamp(altitudeKm / 20_000, 0, 1);
+  let scale = THREE.MathUtils.lerp(ORION_SCALE_EARTH_APPROACH_MIN, ORION_SCALE_DEFAULT, approachFactor);
+
+  if (_terminalVisualState === 'drogue' || _terminalVisualState === 'main') {
+    scale = Math.min(scale, 0.64);
+  } else if (_terminalVisualState === 'splashdown') {
+    scale = ORION_SCALE_SPLASHDOWN;
+  }
+  _orionMarker.scale.setScalar(scale);
+
   if (_terminalVisualState !== 'splashdown' || !Array.isArray(_terminalSplashTargetKm) || _terminalSplashTargetKm.length !== 3) return;
   const splashTarget = _terminalSplashTargetKm;
   const bobKm = Math.sin(_terminalBobbingPhase) * TERMINAL_SPLASH_BOB_KM;
