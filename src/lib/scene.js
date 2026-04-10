@@ -908,6 +908,12 @@ function _makeParachuteGroup() {
   return group;
 }
 
+function _ensureTerminalVisualNodes() {
+  if (!_terminalSplashTargetGroup) _terminalSplashTargetGroup = _makeSplashTargetGroup();
+  if (!_terminalParachuteGroup) _terminalParachuteGroup = _makeParachuteGroup();
+  if (!_terminalEntryGlowMesh) _terminalEntryGlowMesh = _makeEntryGlowMesh();
+}
+
 function _makeEntryGlowMesh() {
   const glow = new THREE.Mesh(
     new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM * 1.18), 14, 12),
