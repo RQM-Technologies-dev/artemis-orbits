@@ -10,6 +10,8 @@ import {
   setTraversedTrailBySegment,
   setMoonTrajectoryBySegment,
   setEventMarkers,
+  setSplashdownSurfaceTarget,
+  setOrionVisualState,
   focusCameraPreset,
   resizeScene,
   renderScene,
@@ -48,6 +50,7 @@ import {
 } from './lib/dataLoader.js';
 import { interpolateSegment } from './lib/interpolate.js';
 import { formatUtc, formatMet, clamp } from './lib/time.js';
+import { buildTerminalDescentModel, getTerminalVisualState } from './lib/terminalDescent.js';
 
 const MS_PER_H = 3_600_000;
 const MS_PER_D = 86_400_000;
@@ -143,6 +146,9 @@ const state = {
   moonData: null,
   moonBounds: [],
   events: [],
+  rawEvents: [],
+  terminalDescent: null,
+  renderMissionData: null,
   missionPhases: [],
   eventMarkers: [],
   missionStartMs: 0,
@@ -184,6 +190,10 @@ const state = {
     liveMode: LANDING_DEFAULTS.liveMode,
     artemis3Mode: ARTEMIS_3_PROFILE_DEFAULT,
     artemis5Mode: ARTEMIS_5_PROFILE_DEFAULT,
+  },
+  terminalUi: {
+    activeCameraCue: null,
+    cameraCueAppliedAtMs: null,
   },
 };
 
@@ -1746,7 +1756,8 @@ async function selectMission(id) {
     state.missionData = missionData;
     state.moonData = moonData;
     loadedEvents = eventsData;
-    state.events = sortEvents(loadedEvents);
+    state.rawEvents = sortEvents(loadedEvents);
+    state.events = [...state.rawEvents];
     state.diagnostics.missionJsonLoaded = Boolean(state.missionData);
     state.diagnostics.moonJsonLoaded = Boolean(state.moonData);
     state.diagnostics.eventsLoaded = Boolean(loadedEvents);
@@ -1768,17 +1779,25 @@ async function selectMission(id) {
   }
 
   hideOverlay();
-  state.flatSamples = flattenSamples(state.missionData);
-  state.missionBounds = getSortedSegmentBounds(state.missionData);
+  state.terminalDescent = buildTerminalDescentModel({
+    missionId: state.activeMissionId,
+    missionData: state.missionData,
+    events: state.rawEvents,
+  });
+  state.renderMissionData = state.terminalDescent?.renderMissionData || state.missionData;
+  state.flatSamples = flattenSamples(state.renderMissionData);
+  state.missionBounds = getSortedSegmentBounds(state.renderMissionData);
   state.moonBounds = getSortedSegmentBounds(state.moonData);
-  const bounds = getMissionTimeBounds(state.missionData);
+  const bounds = getMissionTimeBounds(state.renderMissionData);
   state.missionStartMs = bounds?.startMs ?? 0;
   state.missionStopMs = bounds?.stopMs ?? 0;
   state.currentMs = state.missionStartMs;
 
-  refs.sbSampleCount.textContent = String(state.missionData?.derived?.sampleCount ?? state.flatSamples.length);
-  state.events = prepareMissionEvents(state.events, state.missionStartMs, state.missionStopMs);
+  refs.sbSampleCount.textContent = String(state.renderMissionData?.derived?.sampleCount ?? state.flatSamples.length);
+  state.events = prepareMissionEvents(state.rawEvents, state.missionStartMs, state.missionStopMs);
   state.missionPhases = buildMissionPhases(state.events, state.missionStartMs, state.missionStopMs);
+  state.terminalUi.activeCameraCue = null;
+  state.terminalUi.cameraCueAppliedAtMs = null;
 
   setFollowCameraModeUi(state.ui.followCameraMode, { sync: false });
   setAttitudeReferenceUi(state.ui.attitudeReference, { sync: false });
@@ -1818,7 +1837,7 @@ function scheduleDeferredSceneHydration(token) {
   const run = () => {
     if (token !== _sceneHydrationToken) return;
     try {
-      setMissionTrailsBySegment(state.missionData?.segments || []);
+      setMissionTrailsBySegment(state.renderMissionData?.segments || state.missionData?.segments || []);
       setMoonTrajectoryBySegment(getMoonTrajectorySegmentsForRender(state.activeMissionId, state.moonData));
       buildEventMarkers();
       refreshTimelineEventTicks();
@@ -1934,9 +1953,10 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     _lastUiRefreshAt = nowPerf;
   }
 
+  const missionModel = state.renderMissionData || state.missionData;
   const missionBounds = state.missionBounds;
   const moonBounds = state.moonBounds;
-  const segState = findSegment(state.missionData, state.currentMs, missionBounds);
+  const segState = findSegment(missionModel, state.currentMs, missionBounds);
   const moonState = getInterpolatedState(state.moonData, state.currentMs, moonBounds);
 
   let orionState = null;
@@ -1954,9 +1974,16 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     orionVelocityKmS: orionState?.velocityKmS || null,
   });
   if (state.sceneHydrated && shouldUpdateTrail) {
-    setTraversedTrailBySegment(state.missionData.segments || [], state.currentMs);
+    setTraversedTrailBySegment(missionModel?.segments || [], state.currentMs);
     _lastTrailUpdateNow = now;
   }
+
+  const terminalVisual = getTerminalVisualState(state.events, state.currentMs);
+  const resolvedVisualState = terminalVisual.visualState || (state.terminalDescent ? 'terminal-descent' : 'none');
+  setOrionVisualState(resolvedVisualState);
+
+  const splashdownEvent = state.events.find((event) => event.id === 'splashdown');
+  setSplashdownSurfaceTarget(splashdownEvent?.surfaceTarget || null);
 
   if (shouldRunHeavyUi) {
     const idx = findSampleIndex(state.flatSamples, state.currentMs);
@@ -1980,6 +2007,7 @@ function updateScene({ now = performance.now(), forceHeavy = false } = {}) {
     const visualCalloutEvent = sceneCalloutEvent?.id === 'mission-start' ? null : sceneCalloutEvent;
     setActiveEventCallout(visualCalloutEvent);
     maybeSpeakSceneEvent(visualCalloutEvent);
+    maybeApplyTerminalCameraCue(terminalVisual.cameraCue);
     _lastHeavyUiUpdateNow = now;
   }
   if (shouldSyncUrl) {
@@ -1999,10 +2027,34 @@ function getInterpolatedState(data, tMs, segmentBounds = null) {
 function buildEventMarkers() {
   state.eventMarkers = [];
   for (const event of state.events) {
-    const segState = findSegment(state.missionData, event.epochMs, state.missionBounds);
-    if (!segState?.segment || segState.state === 'gap') continue;
+    if (event.surfaceTarget?.latDeg != null && event.surfaceTarget?.lonDeg != null) {
+      const latDeg = Number(event.surfaceTarget.latDeg);
+      const lonDeg = Number(event.surfaceTarget.lonDeg);
+      if (Number.isFinite(latDeg) && Number.isFinite(lonDeg)) {
+        const altitudeKm = Number.isFinite(Number(event.surfaceTarget.altitudeKm)) ? Number(event.surfaceTarget.altitudeKm) : 0;
+        const latRad = (latDeg * Math.PI) / 180;
+        const lonRad = (lonDeg * Math.PI) / 180;
+        const radiusKm = 6_371 + altitudeKm;
+        const cosLat = Math.cos(latRad);
+        state.eventMarkers.push({
+          id: event.id,
+          label: event.label,
+          kind: 'surface-target',
+          positionKm: [
+            radiusKm * cosLat * Math.cos(lonRad),
+            radiusKm * Math.sin(latRad),
+            radiusKm * cosLat * Math.sin(lonRad),
+          ],
+        });
+        continue;
+      }
+    }
+
+    const missionModel = state.renderMissionData || state.missionData;
+    const segState = findSegment(missionModel, event.epochMs, state.missionBounds);
+    if (!segState?.segment) continue;
     const segmentState = interpolateSegment(segState.segment, segState.snappedMs);
-    state.eventMarkers.push({ id: event.id, label: event.label, positionKm: segmentState.positionKm });
+    state.eventMarkers.push({ id: event.id, label: event.label, kind: 'trajectory', positionKm: segmentState.positionKm });
   }
   setEventMarkers(state.eventMarkers);
 }
@@ -2032,6 +2084,9 @@ function resetLoadedMissionState() {
   _sceneHydrationToken += 1;
   clearPerformanceCaches();
   state.missionData = null;
+  state.renderMissionData = null;
+  state.terminalDescent = null;
+  state.rawEvents = [];
   state.missionBounds = [];
   state.moonData = null;
   state.moonBounds = [];
@@ -2039,6 +2094,8 @@ function resetLoadedMissionState() {
   state.missionPhases = [];
   state.eventMarkers = [];
   state.flatSamples = [];
+  state.terminalUi.activeCameraCue = null;
+  state.terminalUi.cameraCueAppliedAtMs = null;
   state.sceneHydrated = false;
   state.sceneWarmReady = false;
   state.backgroundWarmupRemaining = 0;
@@ -2213,6 +2270,31 @@ function prepareMissionEvents(events, missionStartMs, missionStopMs) {
   return withBoundaries;
 }
 
+function getTerminalModelingNote() {
+  if (!state.terminalDescent) return '';
+  const officialStop = formatUtc(state.terminalDescent.officialStopMs);
+  return `Official OEM in this build ends at ${officialStop}; splashdown UTC/region are verified, while terminal descent and parachute timing beyond that point are modeled.`;
+}
+
+function maybeApplyTerminalCameraCue(cameraCue) {
+  const cue = cameraCue ? String(cameraCue) : null;
+  if (!cue) return;
+  if (state.ui.liveMode) return;
+  if (state.ui.followCamera !== true) return;
+  if (state.terminalUi.activeCameraCue === cue && state.terminalUi.cameraCueAppliedAtMs === state.currentMs) return;
+  if (cue === 'terminal-follow') {
+    setFollowCameraModeUi('cinematic', { sync: false });
+  } else if (cue === 'splashdown-approach') {
+    setFollowCameraModeUi('side', { sync: false });
+  } else if (cue === 'splashdown-surface') {
+    setFollowCameraModeUi('earth-frame', { sync: false });
+  } else {
+    return;
+  }
+  state.terminalUi.activeCameraCue = cue;
+  state.terminalUi.cameraCueAppliedAtMs = state.currentMs;
+}
+
 function findPreviousEvent(events, currentMs) {
   for (let i = events.length - 1; i >= 0; i--) {
     if (events[i].epochMs < currentMs - EVENT_NAV_EPS_MS) return events[i];
@@ -2229,7 +2311,9 @@ function findNextEvent(events, currentMs) {
 
 function eventVerificationTag(event) {
   if (!event) return '';
-  return event.verified === true ? ' [verified]' : ' [unverified]';
+  if (event.verified === true) return ' [verified]';
+  if (event.approximate === true) return ' [estimated]';
+  return ' [unverified]';
 }
 
 function jumpToEventById(eventId) {
@@ -2295,10 +2379,12 @@ function refreshMissionAnnotations(mission) {
   const links = [];
   if (mission.officialPageUrl) links.push(`<a class="annotation-link" href="${mission.officialPageUrl}" target="_blank" rel="noopener">Official mission page</a>`);
   if (mission.officialZipUrl) links.push(`<a class="annotation-link" href="${mission.officialZipUrl}" target="_blank" rel="noopener">Official OEM ZIP</a>`);
+  const terminalNote = getTerminalModelingNote();
   const sourceLi = document.createElement('li');
   sourceLi.innerHTML = [
     `<div class="annotation-label">${mission.summary}</div>`,
     `<div class="annotation-note">Normalized official OEM + JPL moon vectors</div>`,
+    terminalNote ? `<div class="annotation-note">${terminalNote}</div>` : '',
     ...links,
   ].join('');
   refs.annotationList.appendChild(sourceLi);
