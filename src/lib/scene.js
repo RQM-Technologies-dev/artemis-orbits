@@ -23,6 +23,8 @@ const ORION_USA_DECAL_WIDTH_SCALE = 0.96;
 const ORION_USA_DECAL_HEIGHT_SCALE = 0.3;
 const ORION_USA_DECAL_OFFSET_SCALE = 1.03;
 const ORION_USA_DECAL_Y_OFFSET_SCALE = 0.14;
+const ORION_USA_DECAL_BODY_RADIUS_SCALE = 0.8;
+const ORION_USA_DECAL_BODY_HEIGHT_SCALE = 1.0;
 const SUN_GLOW_CORE_SCALE = 3.4;
 const SUN_GLOW_MID_SCALE = 5.8;
 const SUN_GLOW_OUTER_SCALE = 8.2;
@@ -42,6 +44,7 @@ const SCENE_DYNAMIC_UPDATE_INTERVAL_MS = 33;
 const SCENE_DYNAMIC_UPDATE_INTERVAL_SMOOTH_MS = 75;
 const FOLLOW_DISTANCE_MIN = 0.35;
 const FOLLOW_DISTANCE_MAX = 4.5;
+const FOLLOW_DISTANCE_MAX_CINEMATIC = 9.5;
 const FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC = 8.5;
 const ORION_FORWARD_AXIS = new THREE.Vector3(0, 1, 0);
 const ORION_WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -211,6 +214,7 @@ export function createScene(canvas) {
   _scene.add(_moonMesh);
 
   _orionMarker = _makeOrionCapsule(kmToScene(ORION_MARKER_KM));
+  _addOrionUsaDecalsToRoot(_orionMarker, kmToScene(ORION_MARKER_KM));
   _orionMarker.visible = true;
   _scene.add(_orionMarker);
   _tryLoadOrionModel();
@@ -1029,9 +1033,6 @@ function _makeOrionCapsule(radius) {
     _orionBodyMaterial,
   );
   stack.add(crewBody);
-  const usaDecal = _makeOrionUsaDecal(radius, crewRadiusBottom, crewHeight);
-  if (usaDecal) crewBody.add(usaDecal);
-
   const nose = new THREE.Mesh(
     new THREE.ConeGeometry(crewRadiusTop, noseHeight, radialSegments),
     _orionNoseMaterial,
@@ -1189,18 +1190,15 @@ function _makeOrionUsaDecal(radius, bodyRadius, bodyHeight) {
       transparent: true,
       depthWrite: false,
       toneMapped: false,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
     }),
   );
-  decal.position.set(
-    bodyRadius * ORION_USA_DECAL_OFFSET_SCALE,
-    bodyHeight * ORION_USA_DECAL_Y_OFFSET_SCALE,
-    0,
-  );
-  decal.rotation.y = -Math.PI / 2;
+  decal.position.y = bodyHeight * ORION_USA_DECAL_Y_OFFSET_SCALE;
+  decal.position.x = bodyRadius * ORION_USA_DECAL_OFFSET_SCALE;
+  decal.rotation.y = Math.PI / 2;
   return decal;
 }
 
@@ -1229,6 +1227,20 @@ function _makeOrionUsaDecalTexture() {
   tex.anisotropy = Math.min(8, _renderer?.capabilities?.getMaxAnisotropy?.() || 1);
   tex.needsUpdate = true;
   return tex;
+}
+
+function _addOrionUsaDecalsToRoot(orionRoot, radius) {
+  if (!orionRoot) return;
+  const bodyRadius = radius * ORION_USA_DECAL_BODY_RADIUS_SCALE;
+  const bodyHeight = radius * ORION_USA_DECAL_BODY_HEIGHT_SCALE;
+  const starboard = _makeOrionUsaDecal(radius, bodyRadius, bodyHeight);
+  if (!starboard) return;
+  const port = starboard.clone();
+  port.material = starboard.material.clone();
+  port.position.x = -bodyRadius * ORION_USA_DECAL_OFFSET_SCALE;
+  port.rotation.y = -Math.PI / 2;
+  orionRoot.add(starboard);
+  orionRoot.add(port);
 }
 
 function getSafeCanvasSize(canvas) {
@@ -1523,13 +1535,17 @@ function clampDistanceScale(value) {
 }
 
 function _getFollowDistanceLimits() {
-  const phoneFriendlyCinematic = _followCameraMode === 'cinematic'
+  const isCinematic = _followCameraMode === 'cinematic';
+  const phoneFriendlyCinematic = isCinematic
     && typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia(PHONE_FRIENDLY_MEDIA_QUERY).matches;
+  const maxFollowDistance = isCinematic
+    ? (phoneFriendlyCinematic ? FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC : FOLLOW_DISTANCE_MAX_CINEMATIC)
+    : FOLLOW_DISTANCE_MAX;
   return {
     min: FOLLOW_DISTANCE_MIN,
-    max: phoneFriendlyCinematic ? FOLLOW_DISTANCE_MAX_PHONE_CINEMATIC : FOLLOW_DISTANCE_MAX,
+    max: maxFollowDistance,
   };
 }
 
