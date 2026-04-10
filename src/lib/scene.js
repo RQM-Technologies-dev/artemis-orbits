@@ -10,6 +10,7 @@ import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/exam
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/loaders/GLTFLoader.js';
 
 import { kmToScene } from './units.js';
+import { geodeticToCartesianKm } from './geodesy.js';
 
 const EARTH_RADIUS_KM = 6_371;
 const MOON_RADIUS_KM = 1_737;
@@ -58,12 +59,20 @@ const ORION_LOD_HIGH_DISTANCE = 34;
 const ORION_LOD_BALANCED_DISTANCE = 24;
 const ORION_LOD_LOW_DISTANCE = 16;
 const EVENT_CALLOUT_LIFT_KM = 1_000;
+const TERMINAL_SPLASH_RING_RADIUS_KM = 220;
+const TERMINAL_SPLASH_RING_THICKNESS_KM = 42;
+const TERMINAL_SPLASH_PULSE_RADIUS_KM = 120;
+const TERMINAL_SPLASH_BOB_KM = 4.5;
+const PARACHUTE_DROGUE_COUNT = 2;
+const PARACHUTE_MAIN_COUNT = 3;
 const PHONE_FRIENDLY_MEDIA_QUERY = '(max-width: 820px) and (pointer: coarse)';
 const EARTH_FRAME_CAMERA_OFFSET = new THREE.Vector3(0.95, 0.55, 1.05);
 const OUTBOUND_ROUTE_STYLE = { color: 0x8dcbff, opacity: 0.72 };
 const RETURN_ROUTE_STYLE = { color: 0xffbf98, opacity: 0.72 };
+const MODELED_RETURN_STYLE = { color: 0x7be0ff, opacity: 0.5 };
 const OUTBOUND_TRAVERSED_STYLE = { color: 0xdaf3ff, opacity: 1 };
 const RETURN_TRAVERSED_STYLE = { color: 0xffe4d1, opacity: 1 };
+const MODELED_TRAVERSED_STYLE = { color: 0xc7f5ff, opacity: 0.9 };
 const LIGHTING_UPDATE_INTERVAL_MS = 80;
 const AUTO_EXPOSURE_UPDATE_INTERVAL_MS = 50;
 const ORION_LOD_UPDATE_INTERVAL_MS = 120;
@@ -131,6 +140,12 @@ let _sunGlowFlareMaterial = null;
 let _orionUsaDecalTexture = null;
 let _pointerDown = null;
 let _sunScreenFlareEl = null;
+let _terminalVisualState = 'none';
+let _terminalSplashTargetKm = null;
+let _terminalSplashTargetGroup = null;
+let _terminalParachuteGroup = null;
+let _terminalEntryGlowMesh = null;
+let _terminalBobbingPhase = 0;
 let _sceneLoadSmoothing = false;
 let _lastSceneDynamicUpdateMs = 0;
 let _lastLightingUpdateNow = 0;
@@ -152,6 +167,9 @@ const _tmpSunWorld = new THREE.Vector3();
 const _tmpSunNdc = new THREE.Vector3();
 const _tmpCameraForward = new THREE.Vector3();
 const _tmpCameraToSun = new THREE.Vector3();
+const _tmpVecA = new THREE.Vector3();
+const _tmpVecB = new THREE.Vector3();
+const _tmpVecC = new THREE.Vector3();
 
 export function createScene(canvas) {
   if (!canvas) throw new Error('createScene(canvas) requires a valid canvas element');
@@ -318,6 +336,7 @@ export function updateBodies(orionKm, moonKm, options = {}) {
 
   const moonPosKm = moonKm || DEFAULT_MOON_POSITION_KM;
   _moonMesh.position.set(kmToScene(moonPosKm[0]), kmToScene(moonPosKm[1]), kmToScene(moonPosKm[2]));
+  _updateOrionVisualAttachments();
 }
 
 export function setMissionTrailsBySegment(segments) {
@@ -326,8 +345,17 @@ export function setMissionTrailsBySegment(segments) {
   _rebuildTraversedTrailCache(segments);
   for (const seg of segments || []) {
     const phase = _getTrajectoryPhaseForSegment(seg);
-    const style = phase === 'return' ? RETURN_ROUTE_STYLE : OUTBOUND_ROUTE_STYLE;
-    const line = makeLineFromSamples(seg.samples || [], { color: style.color, opacity: style.opacity, linewidth: 2.4 });
+    const style = seg?.metadata?.modeled === true
+      ? MODELED_RETURN_STYLE
+      : (phase === 'return' ? RETURN_ROUTE_STYLE : OUTBOUND_ROUTE_STYLE);
+    const line = makeLineFromSamples(seg.samples || [], {
+      color: style.color,
+      opacity: style.opacity,
+      linewidth: 2.4,
+      dashed: seg?.metadata?.modeled === true,
+      dashSize: 0.06,
+      gapSize: 0.04,
+    });
     if (line) _fullTrailGroup.add(line);
   }
 }
@@ -367,7 +395,11 @@ export function setEventMarkers(markers) {
 
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(kmToScene(240), 12, 12),
-      new THREE.MeshBasicMaterial({ color: 0xffb2d8, transparent: true, opacity: 1 }),
+      new THREE.MeshBasicMaterial({
+        color: marker.kind === 'surface-target' ? 0x63e0ff : 0xffb2d8,
+        transparent: true,
+        opacity: marker.kind === 'surface-target' ? 0.95 : 1,
+      }),
     );
     sphere.position.set(
       kmToScene(marker.positionKm[0]),
@@ -387,6 +419,8 @@ export function resetSceneDynamicState() {
   clearGroup(_eventMarkerGroup);
   clearGroup(_moonTrajectoryGroup);
   _trajectorySplitMs = null;
+  setSplashdownSurfaceTarget(null);
+  setOrionVisualState('none');
   setOrionManeuverLevel(0);
   setActiveEventCallout(null);
 }
@@ -478,6 +512,8 @@ export function renderScene() {
   if ((now - _lastSceneDynamicUpdateMs) >= dynamicInterval) {
     _lastSceneDynamicUpdateMs = now;
   }
+  _tickTerminalSplashTarget(now);
+  _updateOrionTerminalVisualState();
   _updateEventCalloutPosition();
   _controls.update();
   _updateSunScreenFlareOverlay();
@@ -764,7 +800,216 @@ export function setOrionAttitudeReference(reference = 'velocity') {
   _orionAttitudeReference = (r === 'moon' || r === 'earth') ? r : 'velocity';
 }
 
-function makeLineFromSamples(samples, { color, opacity, linewidth = 1 }) {
+export function setSplashdownSurfaceTarget(surfaceTarget) {
+  _ensureTerminalVisualNodes();
+  if (!surfaceTarget || typeof surfaceTarget !== 'object') {
+    _terminalSplashTargetKm = null;
+    _updateSplashTargetVisual();
+    return;
+  }
+  const latDeg = Number(surfaceTarget.latDeg);
+  const lonDeg = Number(surfaceTarget.lonDeg);
+  const altitudeKm = Number.isFinite(Number(surfaceTarget.altitudeKm)) ? Number(surfaceTarget.altitudeKm) : 0;
+  if (!Number.isFinite(latDeg) || !Number.isFinite(lonDeg)) {
+    _terminalSplashTargetKm = null;
+    _updateSplashTargetVisual();
+    return;
+  }
+  _terminalSplashTargetKm = geodeticToCartesianKm({ latDeg, lonDeg, altitudeKm });
+  _updateSplashTargetVisual();
+}
+
+export function setOrionVisualState(state = 'none') {
+  _ensureTerminalVisualNodes();
+  _terminalVisualState = String(state || 'none');
+  _updateOrionTerminalVisualState();
+}
+
+function _makeSplashTargetGroup() {
+  const group = new THREE.Group();
+  group.visible = false;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(kmToScene(TERMINAL_SPLASH_RING_RADIUS_KM), kmToScene(TERMINAL_SPLASH_RING_THICKNESS_KM), 18, 72),
+    new THREE.MeshBasicMaterial({
+      color: 0x58d8ff,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  const pulse = new THREE.Mesh(
+    new THREE.CircleGeometry(kmToScene(TERMINAL_SPLASH_PULSE_RADIUS_KM), 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x8feaff,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+  );
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(kmToScene(36), 12, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0xb6f2ff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  group.add(ring, pulse, core);
+  group.userData = { ring, pulse, core };
+  _scene?.add(group);
+  return group;
+}
+
+function _makeParachuteGroup() {
+  const group = new THREE.Group();
+  group.visible = false;
+  const nodes = { drogues: [], mains: [], lines: [] };
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xbecde6, transparent: true, opacity: 0.85 });
+  for (let i = 0; i < PARACHUTE_DROGUE_COUNT; i++) {
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(kmToScene(150), 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshBasicMaterial({ color: 0xd7ecff, transparent: true, opacity: 0.8 }),
+    );
+    dome.scale.set(0.72, 0.55, 0.72);
+    const side = i === 0 ? -1 : 1;
+    dome.position.set(kmToScene(side * 230), kmToScene(520), kmToScene(-80));
+    dome.rotation.x = Math.PI;
+    group.add(dome);
+    nodes.drogues.push(dome);
+  }
+  for (let i = 0; i < PARACHUTE_MAIN_COUNT; i++) {
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(kmToScene(240), 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.52),
+      new THREE.MeshBasicMaterial({ color: 0xf2f6ff, transparent: true, opacity: 0.9 }),
+    );
+    dome.scale.set(0.88, 0.6, 0.88);
+    const side = i - 1;
+    dome.position.set(kmToScene(side * 300), kmToScene(690), kmToScene(-120));
+    dome.rotation.x = Math.PI;
+    group.add(dome);
+    nodes.mains.push(dome);
+    for (let lineIdx = 0; lineIdx < 3; lineIdx++) {
+      const line = new THREE.Line(new THREE.BufferGeometry(), lineMat.clone());
+      line.userData = { parentCanopy: dome, lineIdx };
+      group.add(line);
+      nodes.lines.push(line);
+    }
+  }
+  group.userData = { nodes };
+  _orionMarker?.add(group);
+  return group;
+}
+
+function _makeEntryGlowMesh() {
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(kmToScene(ORION_MARKER_KM * 1.18), 14, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0xff9f69,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  glow.visible = false;
+  _orionMarker?.add(glow);
+  return glow;
+}
+
+function _updateSplashTargetVisual(now = performance.now()) {
+  if (!_terminalSplashTargetGroup) _terminalSplashTargetGroup = _makeSplashTargetGroup();
+  if (!_terminalSplashTargetGroup) return;
+  if (!_terminalSplashTargetKm) {
+    _terminalSplashTargetGroup.visible = false;
+    return;
+  }
+  _terminalSplashTargetGroup.visible = true;
+  _tmpVecA.set(kmToScene(_terminalSplashTargetKm[0]), kmToScene(_terminalSplashTargetKm[1]), kmToScene(_terminalSplashTargetKm[2]));
+  const normal = _tmpVecB.copy(_tmpVecA).normalize();
+  _terminalSplashTargetGroup.position.copy(_tmpVecA);
+  _tmpVecC.set(0, 1, 0);
+  if (Math.abs(_tmpVecC.dot(normal)) > 0.94) _tmpVecC.set(1, 0, 0);
+  _tmpVecB.crossVectors(_tmpVecC, normal).normalize();
+  _tmpVecC.crossVectors(normal, _tmpVecB).normalize();
+  _terminalSplashTargetGroup.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(_tmpVecB, _tmpVecC, normal));
+  const ring = _terminalSplashTargetGroup.userData?.ring;
+  const pulse = _terminalSplashTargetGroup.userData?.pulse;
+  const core = _terminalSplashTargetGroup.userData?.core;
+  if (ring?.material) {
+    ring.rotation.z += 0.004;
+    ring.scale.setScalar(1 + Math.sin(now * 0.0018) * 0.06);
+    ring.material.opacity = 0.42 + (Math.sin(now * 0.0024) * 0.16);
+  }
+  if (pulse?.material) {
+    pulse.scale.setScalar(1 + Math.sin(now * 0.0032) * 0.16);
+    pulse.material.opacity = 0.2 + (Math.sin(now * 0.0027) * 0.08);
+  }
+  if (core?.material) core.material.opacity = 0.8 + (Math.sin(now * 0.0032) * 0.12);
+}
+
+function _updateOrionTerminalVisualState() {
+  if (!_terminalParachuteGroup) _terminalParachuteGroup = _makeParachuteGroup();
+  if (!_terminalEntryGlowMesh) _terminalEntryGlowMesh = _makeEntryGlowMesh();
+  const inEntry = _terminalVisualState === 'entry-interface' || _terminalVisualState === 'terminal-descent';
+  const inDrogue = _terminalVisualState === 'drogue';
+  const inMain = _terminalVisualState === 'main';
+  const inSplash = _terminalVisualState === 'splashdown';
+  if (_terminalEntryGlowMesh?.material) {
+    _terminalEntryGlowMesh.visible = inEntry || inDrogue;
+    _terminalEntryGlowMesh.material.opacity = inEntry ? 0.35 : (inDrogue ? 0.16 : 0);
+  }
+  if (_terminalParachuteGroup) {
+    _terminalParachuteGroup.visible = inDrogue || inMain || inSplash;
+    _setParachuteVisibility({
+      showDrogue: inDrogue,
+      showMain: inMain || inSplash,
+      splashHold: inSplash,
+    });
+  }
+}
+
+function _tickTerminalSplashTarget(now = performance.now()) {
+  _updateSplashTargetVisual(now);
+  if (_terminalVisualState !== 'splashdown') return;
+  _terminalBobbingPhase += 0.034;
+}
+
+function _setParachuteVisibility({ showDrogue, showMain, splashHold }) {
+  const nodes = _terminalParachuteGroup?.userData?.nodes;
+  if (!nodes) return;
+  for (const chute of nodes.drogues || []) chute.visible = Boolean(showDrogue);
+  for (const chute of nodes.mains || []) chute.visible = Boolean(showMain);
+  for (const line of nodes.lines || []) {
+    const canopy = line.userData?.parentCanopy || null;
+    line.visible = Boolean(canopy?.visible);
+  }
+  _updateParachuteSuspensionLines(Boolean(splashHold));
+}
+
+function _updateParachuteSuspensionLines(splashHold = false) {
+  const lines = _terminalParachuteGroup?.userData?.nodes?.lines || [];
+  const verticalOffset = splashHold ? kmToScene(70) : kmToScene(84);
+  const aftOffset = splashHold ? kmToScene(-20) : kmToScene(-28);
+  for (const line of lines) {
+    if (!line.visible) continue;
+    const canopy = line.userData?.parentCanopy || null;
+    if (!canopy) continue;
+    const top = canopy.position.clone();
+    const idx = Number(line.userData?.lineIdx || 0);
+    const lateral = (idx - 1) * kmToScene(34) * (splashHold ? 0.55 : 1);
+    const bottom = new THREE.Vector3(lateral, verticalOffset, aftOffset);
+    line.geometry.dispose();
+    line.geometry = new THREE.BufferGeometry().setFromPoints([top, bottom]);
+  }
+}
+
+function makeLineFromSamples(samples, { color, opacity, linewidth = 1, dashed = false, dashSize = 0.06, gapSize = 0.04 }) {
   if (!samples || samples.length < 2) return null;
   const vertices = new Float32Array(samples.length * 3);
   for (let i = 0; i < samples.length; i++) {
@@ -775,10 +1020,12 @@ function makeLineFromSamples(samples, { color, opacity, linewidth = 1 }) {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  return new THREE.Line(
-    geo,
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity, linewidth }),
-  );
+  const material = dashed
+    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, linewidth, dashSize, gapSize })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity, linewidth });
+  const line = new THREE.Line(geo, material);
+  if (dashed) line.computeLineDistances();
+  return line;
 }
 
 function _computeTrajectorySplitMs(segments) {
@@ -813,8 +1060,17 @@ function _rebuildTraversedTrailCache(segments) {
     const samples = seg?.samples || [];
     if (samples.length < 2) continue;
     const phase = _getTrajectoryPhaseForSegment(seg);
-    const style = phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE;
-    const line = makeLineFromSamples(samples, { color: style.color, opacity: style.opacity, linewidth: 3.6 });
+    const style = seg?.metadata?.modeled === true
+      ? MODELED_TRAVERSED_STYLE
+      : (phase === 'return' ? RETURN_TRAVERSED_STYLE : OUTBOUND_TRAVERSED_STYLE);
+    const line = makeLineFromSamples(samples, {
+      color: style.color,
+      opacity: style.opacity,
+      linewidth: 3.6,
+      dashed: seg?.metadata?.modeled === true,
+      dashSize: 0.045,
+      gapSize: 0.04,
+    });
     if (!line) continue;
     line.visible = false;
     line.geometry.setDrawRange(0, 0);
@@ -852,6 +1108,19 @@ function clearGroup(group) {
     child.geometry?.dispose?.();
     child.material?.dispose?.();
   }
+}
+
+function _updateOrionVisualAttachments() {
+  if (!_orionMarker) return;
+  if (_terminalVisualState !== 'splashdown' || !Array.isArray(_terminalSplashTargetKm) || _terminalSplashTargetKm.length !== 3) return;
+  const splashTarget = _terminalSplashTargetKm;
+  const bobKm = Math.sin(_terminalBobbingPhase) * TERMINAL_SPLASH_BOB_KM;
+  const len = Math.hypot(splashTarget[0], splashTarget[1], splashTarget[2]) || 1;
+  _orionMarker.position.set(
+    kmToScene(splashTarget[0] + ((splashTarget[0] / len) * bobKm)),
+    kmToScene(splashTarget[1] + ((splashTarget[1] / len) * bobKm)),
+    kmToScene(splashTarget[2] + ((splashTarget[2] / len) * bobKm)),
+  );
 }
 
 function _makeStarField(count) {

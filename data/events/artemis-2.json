@@ -17,6 +17,77 @@
     "type": "data-boundary",
     "verified": true,
     "sourceNote": "Exact epoch from committed normalized official NASA Artemis II OEM dataset (data/normalized/artemis-2.json).",
-    "description": "Last available sample in the committed Artemis II normalized OEM file."
+    "description": "Last available sample in the committed Artemis II normalized OEM file; this committed OEM endpoint is before splashdown."
+  },
+  {
+    "id": "terminal-descent-start",
+    "label": "Modeled terminal descent extension begins",
+    "epochUtc": "2026-04-10T23:53:17.163Z",
+    "metSeconds": 770140,
+    "type": "milestone",
+    "verified": false,
+    "approximate": true,
+    "sourceNote": "Derived directly from the final committed official OEM sample to bridge the gap to splashdown.",
+    "description": "Transition point where modeled terminal descent starts beyond the current official OEM endpoint.",
+    "visualState": "terminal-descent",
+    "cameraCue": "terminal-follow"
+  },
+  {
+    "id": "entry-interface",
+    "label": "Entry interface (modeled timing)",
+    "epochUtc": "2026-04-10T23:53:17.163Z",
+    "metSeconds": 770140,
+    "type": "milestone",
+    "verified": false,
+    "approximate": true,
+    "sourceNote": "Estimated from Orion nominal entry/parachute sequence; replace with exact Artemis II timestamps when verified.",
+    "description": "Atmospheric entry begins at the current committed OEM endpoint in this visualization.",
+    "visualState": "entry-interface",
+    "cameraCue": "terminal-follow"
+  },
+  {
+    "id": "drogue-chutes-deploy",
+    "label": "Drogue parachutes deploy (estimated)",
+    "epochUtc": "2026-04-11T00:04:00.000Z",
+    "metSeconds": 770783,
+    "type": "milestone",
+    "verified": false,
+    "approximate": true,
+    "sourceNote": "Estimated from Orion nominal entry/parachute sequence; replace with exact Artemis II timestamps when verified.",
+    "description": "Two drogue chutes deploy during terminal descent (modeled timing).",
+    "visualState": "drogue",
+    "cameraCue": "terminal-follow"
+  },
+  {
+    "id": "main-parachutes-deploy",
+    "label": "Main parachutes deploy (estimated)",
+    "epochUtc": "2026-04-11T00:05:00.000Z",
+    "metSeconds": 770843,
+    "type": "milestone",
+    "verified": false,
+    "approximate": true,
+    "sourceNote": "Estimated from Orion nominal entry/parachute sequence; replace with exact Artemis II timestamps when verified.",
+    "description": "Three main chutes deploy for final deceleration (modeled timing).",
+    "visualState": "main",
+    "cameraCue": "splashdown-approach"
+  },
+  {
+    "id": "splashdown",
+    "label": "Pacific splashdown off San Diego",
+    "epochUtc": "2026-04-11T00:07:00.000Z",
+    "metSeconds": 770963,
+    "type": "milestone",
+    "verified": true,
+    "sourceNote": "Splashdown UTC and regional location are mission facts from NASA Artemis II public mission material.",
+    "description": "Orion splashdown in the eastern Pacific off San Diego, California.",
+    "surfaceTarget": {
+      "latDeg": 32.45,
+      "lonDeg": -118.05,
+      "altitudeKm": 0,
+      "approximate": true,
+      "label": "Pacific splashdown area off San Diego"
+    },
+    "visualState": "splashdown",
+    "cameraCue": "splashdown-surface"
   }
 ]

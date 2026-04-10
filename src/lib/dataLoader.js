@@ -220,6 +220,12 @@ export function sortEvents(events) {
         description: event.description || '',
         verified: event.verified === true,
         sourceNote: event.sourceNote || '',
+        approximate: event.approximate === true,
+        surfaceTarget: (event.surfaceTarget && typeof event.surfaceTarget === 'object')
+          ? { ...event.surfaceTarget }
+          : null,
+        visualState: event.visualState ? String(event.visualState) : null,
+        cameraCue: event.cameraCue ? String(event.cameraCue) : null,
       };
     })
     .filter(Boolean)
