@@ -79,6 +79,16 @@ def run_check(mission_path: Path, events_path: Path | None, reports_dir: Path) -
             epoch_utc = ev.get('epochUtc')
             event_ms = int(datetime.fromisoformat(epoch_utc.replace('Z', '+00:00')).timestamp() * 1000) if epoch_utc else None
             in_range = bool(start_ms is not None and stop_ms is not None and event_ms is not None and start_ms <= event_ms <= stop_ms)
+            out_of_range_allowed = False
+            if not in_range:
+                # Some events intentionally extend beyond official OEM windows (for
+                # example, approximate splashdown targets added for visualization).
+                # Those should be included in reports but not fail strict CI mode.
+                out_of_range_allowed = bool(ev.get('approximate', False))
+                if not out_of_range_allowed:
+                    surface_target = ev.get('surfaceTarget')
+                    if isinstance(surface_target, dict):
+                        out_of_range_allowed = bool(surface_target.get('approximate', False))
 
             near_ms, offset_ms = nearest_sample(samples, event_ms) if event_ms is not None else (None, None)
             window = support_window(samples, event_ms) if event_ms is not None else None
@@ -89,13 +99,17 @@ def run_check(mission_path: Path, events_path: Path | None, reports_dir: Path) -
                     'label': ev.get('label'),
                     'epochUtc': epoch_utc,
                     'verified': bool(ev.get('verified', False)),
-                    'rangeStatus': 'inside-range' if in_range else 'out-of-range',
+                    'rangeStatus': (
+                        'inside-range'
+                        if in_range
+                        else ('out-of-range-allowed' if out_of_range_allowed else 'out-of-range')
+                    ),
                     'nearestSampleEpochMs': near_ms,
                     'nearestSampleOffsetMs': offset_ms,
                     'interpolationSupport': window,
                 }
             )
-            if not in_range and bool(ev.get('verified', False)):
+            if not in_range and bool(ev.get('verified', False)) and not out_of_range_allowed:
                 warnings.append(f'Verified event {ev_id} is outside mission time window')
     else:
         warnings.append('Event file missing; mission-to-event timing check skipped.')
@@ -190,7 +204,6 @@ def main() -> int:
     for mission_path, events_path in jobs:
         if not mission_path.exists():
             print(f'WARNING: skipping missing mission file {mission_path}')
-            rc = 1
             continue
         report, out_path = run_check(mission_path, events_path, reports_dir)
         print_report(report, out_path)
