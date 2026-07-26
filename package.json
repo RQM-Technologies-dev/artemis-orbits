@@ -14,5 +14,6 @@
     "verify:playback": "python3 scripts/verify_playback_timing.py",
     "summarize:data": "python3 scripts/summarize_mission_data.py",
     "data:check": "python3 scripts/check_first_data_files.py"
-  }
+  },
+  "license": "Apache-2.0"
 }
